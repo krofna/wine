@@ -78,7 +78,7 @@
 @ stub SdbGetShowDebugInfoOptionValue
 @ stub SdbGetStandardDatabaseGUID
 @ stub SdbGetStringTagPtr
-@ stub SdbGetTagFromTagID
+@ stdcall SdbGetTagFromTagID(ptr long)
 @ stub SdbGrabMatchingInfo
 @ stub SdbGrabMatchingInfoEx
 @ stub SdbGUIDFromString

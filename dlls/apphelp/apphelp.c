@@ -26,12 +26,6 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(apphelp);
 
-/* FIXME: don't know where to place that enum */
-typedef enum _PATH_TYPE {
-    DOS_PATH,
-    NT_PATH
-} PATH_TYPE;
-
 BOOL WINAPI DllMain( HINSTANCE hinst, DWORD reason, LPVOID reserved )
 {
     TRACE("%p, %u, %p\n", hinst, reason, reserved);
@@ -358,4 +352,62 @@ LPCWSTR WINAPI SdbTagToString(TAG tag)
 
     /* tag is valid */
     return switch_table ? table2[type_index][index] : table[type_index][index];
+}
+
+static BOOL WINAPI SdbSafeAdd(DWORD a, DWORD b, PDWORD c)
+{
+    if ((a + b) >= a)
+    {
+        *c = a + b;
+        return TRUE;
+    }
+    return FALSE;
+}
+
+static BOOL WINAPI SdbReadData(PDB db, PVOID dest, DWORD offset, DWORD num)
+{
+    DWORD size;
+
+    if (!SdbSafeAdd(offset, num, &size))
+    {
+        TRACE("Failed to add %u and %u, overflow!", offset, num);
+        return FALSE;
+    }
+
+    if (db->size < size)
+    {
+        TRACE("Cannot read %u bytes starting at %u from database of size %u, overflow!",
+              num, offset, db->size);
+        return FALSE;
+    }
+
+    memcpy(dest, db->data + offset, num);
+    return TRUE;
+}
+
+/**************************************************************************
+ *        SdbGetTagFromTagID                [APPHELP.@]
+ *
+ * Searches shim database for the tag associated with specified tagid
+ *
+ * PARAMS
+ *  db      [I] Handle to the shim database
+ *  tagid   [I] The TAGID associated with the the tag
+ *
+ * RETURNS
+ *  Success: The tag associated with specified tagid
+ *  Failure: TAG_NULL
+ */
+TAG WINAPI SdbGetTagFromTagID(PDB db, TAGID tagid)
+{
+    TAG data;
+
+    /* A tag associated with tagid is first 2 bytes tagid bytes offset from beginning */
+    if (!SdbReadData(db, &data, tagid, 2))
+    {
+        TRACE("Failed to read tag at tagid %u\n", tagid);
+        return TAG_NULL;
+    }
+
+    return data;
 }
