@@ -138,7 +138,7 @@
 @ stub SdbStringReplace
 @ stub SdbStringReplaceArray
 @ stub SdbTagIDToTagRef
-@ stub SdbTagToString
+@ stdcall SdbTagToString(long)
 @ stub SdbUnregisterDatabase
 @ stub SdbWriteBinaryTag
 @ stub SdbWriteBinaryTagFromFile
