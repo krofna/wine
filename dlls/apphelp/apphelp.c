@@ -767,3 +767,43 @@ DWORD WINAPI SdbReadDWORDTag(PDB db, TAGID tagid, DWORD ret)
 
     return ret;
 }
+
+/**************************************************************************
+ *        SdbReadQWORDTag                [APPHELP.@]
+ *
+ * Reads QWORD value at specified tagid
+ *
+ * PARAMS
+ *  db          [I] Handle to the shim database
+ *  tagid       [I] TAGID of QWORD value
+ *  ret         [I] Default return value in case function fails
+ *
+ * RETURNS
+ *  Success: QWORD value at specified tagid
+ *  Failure: ret
+ */
+QWORD WINAPI SdbReadQWORDTag(PDB db, TAGID tagid, QWORD ret)
+{
+    TAG tag;
+
+    tag = SdbGetTagFromTagID(db, tagid);
+    if (tag == TAG_NULL)
+    {
+        TRACE("Failed to find tag for tagid %u\n", tagid);
+        return ret;
+    }
+
+    if ((tag & TAG_TYPE_MASK) != TAG_TYPE_QWORD)
+    {
+        TRACE("Tag associated with tagid %u is not a QWORD\n", tagid);
+        return ret;
+    }
+
+    if (!SdbReadData(db, &ret, tagid + 2, sizeof(QWORD)))
+    {
+        TRACE("Failed to read QWORD tag %s at tagid %u\n", debugstr_w(SdbTagToString(tag)), tagid);
+        return ret;
+    }
+
+    return ret;
+}

@@ -18,6 +18,7 @@
 
 typedef WORD TAG;
 typedef DWORD TAGID;
+typedef UINT64 QWORD;
 
 typedef struct _DB {
     HANDLE file;

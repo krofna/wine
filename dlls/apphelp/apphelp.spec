@@ -118,7 +118,7 @@
 @ stub SdbReadEntryInformation
 @ stub SdbReadMsiTransformInfo
 @ stub SdbReadPatchBits
-@ stub SdbReadQWORDTag
+@ stdcall SdbReadQWORDTag(ptr long int64)
 @ stub SdbReadQWORDTagRef
 @ stdcall SdbReadStringTag(ptr long wstr long)
 @ stub SdbReadStringTagRef
