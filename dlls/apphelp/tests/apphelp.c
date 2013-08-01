@@ -1,5 +1,6 @@
 /*
  * Copyright 2012 Detlef Riekenberg
+ * Copyright 2013 Mislav Blažević
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -24,11 +25,24 @@
 #include <exdisp.h>
 #include <shlobj.h>
 #include <urlmon.h>
+#include <appcompatapi.h>
+#include <winbase.h>
+#include "../apphelp.h"
 
 #include "wine/test.h"
 
 static HMODULE hdll;
 static BOOL (WINAPI *pApphelpCheckShellObject)(REFCLSID, BOOL, ULONGLONG *);
+static LPCWSTR (WINAPI *pSdbTagToString)(TAG);
+static PDB (WINAPI *pSdbOpenDatabase)(LPCWSTR, PATH_TYPE);
+static void (WINAPI *pSdbCloseDatabase)(PDB);
+static TAG (WINAPI *pSdbGetTagFromTagID)(PDB, TAGID);
+static DWORD (WINAPI *pSdbReadDWORDTag)(PDB, TAGID, DWORD);
+static QWORD (WINAPI *pSdbReadQWORDTag)(PDB, TAGID, QWORD);
+static TAGID (WINAPI *pSdbGetFirstChild)(PDB, TAGID);
+static TAGID (WINAPI *pSdbGetNextChild)(PDB, TAGID, TAGID);
+static LPWSTR (WINAPI *pSdbGetStringTagPtr)(PDB, TAGID);
+static BOOL (WINAPI *pSdbReadStringTag)(PDB, TAGID, LPWSTR, DWORD);
 
 DEFINE_GUID(GUID_NULL,0,0,0,0,0,0,0,0,0,0,0);
 
@@ -102,6 +116,124 @@ static void test_ApphelpCheckShellObject(void)
     }
 }
 
+static void test_SdbTagToString(void)
+{
+    WORD i;
+    static const TAG invalid_values[] = {
+        1, TAG_TYPE_WORD, TAG_TYPE_MASK,
+        TAG_TYPE_DWORD | 0xFF,
+        TAG_TYPE_DWORD | (0x800 + 0xEE),
+        0x900, 0xFFFF, 0xDEAD, 0xBEEF
+    };
+    static const WCHAR invalid[] = {'I','n','v','a','l','i','d','T','a','g',0};
+    LPCWSTR ret;
+
+    for (i = 0; i < 9; ++i)
+    {
+        ret = pSdbTagToString(invalid_values[i]);
+        ok(lstrcmpW(ret, invalid) == 0, "unexpected string %s, should be %s\n",
+           wine_dbgstr_w(ret), wine_dbgstr_w(invalid));
+    }
+}
+
+static void Write(HANDLE file, LPCVOID buffer, DWORD size)
+{
+    WriteFile(file, buffer, size, NULL, NULL);
+}
+
+static void test_Sdb(void)
+{
+    static const WCHAR path[] = {'t','e','m','p',0};
+    static const WCHAR tag_size_string[] = {'S','I','Z','E',0};
+    static const WCHAR tag_flag_lua_string[] = {'F','L','A','G','_','L','U','A',0};
+    static const TAG tags[5] = {
+        TAG_SIZE, TAG_FLAG_LUA, TAG_NAME,
+        TAG_STRINGTABLE, TAG_STRINGTABLE_ITEM
+    };
+    WCHAR buffer[6] = {0};
+    PDB db;
+    HANDLE file; /* temp file created for testing purpose */
+    DWORD two = 2, one = 1; /* version magic */
+    DWORD value = 5;
+    QWORD value2 = 0xDEADBEEF;
+    TAG tag;
+    DWORD path_size = 5 * sizeof(WCHAR); /* size of path variable */
+    TAGID tagid, stringref = 6, stringtable = path_size + 6;
+    LPCWSTR string;
+
+    file = CreateFileW(path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
+
+    if (file == INVALID_HANDLE_VALUE)
+    {
+        ok(FALSE, "could not perform test because temp file could not be created\n");
+        return;
+    }
+
+    Write(file, &two, 4);
+    Write(file, &one, 4);
+    Write(file, "sdbf", 4);
+    Write(file, &tags[0], 2);
+    Write(file, &value, 4);
+    Write(file, &tags[1], 2);
+    Write(file, &value2, 8);
+    Write(file, &tags[2], 2);
+    Write(file, &stringref, 4);
+    Write(file, &tags[3], 2);
+    Write(file, &stringtable, 4);
+    Write(file, &tags[4], 2);
+    Write(file, &path_size, 4);
+    Write(file, path, path_size);
+    CloseHandle(file);
+
+    db = pSdbOpenDatabase(path, DOS_PATH);
+    ok(db != NULL, "unexpected NULL handle\n");
+
+    tagid = pSdbGetFirstChild(db, TAGID_ROOT);
+    ok(tagid == _TAGID_ROOT, "unexpected tagid %u, expected %u\n", tagid, _TAGID_ROOT);
+
+    tag = pSdbGetTagFromTagID(db, tagid);
+    ok(tag == TAG_SIZE, "unexpected tag 0x%x, expected 0x%x\n", tag, TAG_SIZE);
+
+    string = pSdbTagToString(tag);
+    ok(lstrcmpW(string, tag_size_string) == 0, "unexpected string %s, expected %s\n",
+       wine_dbgstr_w(string), wine_dbgstr_w(tag_size_string));
+
+    value = pSdbReadDWORDTag(db, tagid, 0);
+    ok(value == 5, "unexpected value %u, expected 5\n", value);
+
+    tagid = pSdbGetNextChild(db, TAGID_ROOT, tagid);
+    ok(tagid == _TAGID_ROOT + sizeof(TAG) + sizeof(DWORD), "unexpected tagid %u, expected %u\n",
+       tagid, _TAGID_ROOT + sizeof(TAG) + sizeof(DWORD));
+
+    tag = pSdbGetTagFromTagID(db, tagid);
+    ok (tag == TAG_FLAG_LUA, "unexpected tag 0x%x, expected 0x%x\n", tag, TAG_FLAG_LUA);
+
+    string = pSdbTagToString(tag);
+    ok(lstrcmpW(string, tag_flag_lua_string) == 0, "unexpected string %s, expected %s\n",
+       wine_dbgstr_w(string), wine_dbgstr_w(tag_flag_lua_string));
+
+    value2 = pSdbReadQWORDTag(db, tagid, 0);
+    ok(value2 == 0xDEADBEEF, "unexpected value 0x%llx, expected 0x%x\n", value2, 0xDEADBEEF);
+
+    tagid = pSdbGetNextChild(db, TAGID_ROOT, tagid);
+    string = pSdbGetStringTagPtr(db, tagid);
+    ok (string && (lstrcmpW(string, path) == 0), "unexpected string %s, expected %s\n",
+        wine_dbgstr_w(string), wine_dbgstr_w(path));
+
+    tagid = pSdbGetNextChild(db, TAGID_ROOT, tagid);
+    tagid = pSdbGetFirstChild(db, tagid);
+
+    string = pSdbGetStringTagPtr(db, tagid);
+    ok (string && (lstrcmpW(string, path) == 0), "unexpected string %s, expected %s\n",
+        wine_dbgstr_w(string), wine_dbgstr_w(path));
+
+    ok (pSdbReadStringTag(db, tagid, buffer, 6), "failed to write string to buffer\n");
+    ok (!pSdbReadStringTag(db, tagid, buffer, 3), "string was written to buffer, but failure was expected");
+
+    pSdbCloseDatabase(db);
+    DeleteFileW(path);
+}
+
 START_TEST(apphelp)
 {
 
@@ -111,6 +243,18 @@ START_TEST(apphelp)
         return;
     }
     pApphelpCheckShellObject = (void *) GetProcAddress(hdll, "ApphelpCheckShellObject");
+    pSdbTagToString = (void *) GetProcAddress(hdll, "SdbTagToString");
+    pSdbOpenDatabase = (void *) GetProcAddress(hdll, "SdbOpenDatabase");
+    pSdbCloseDatabase = (void *) GetProcAddress(hdll, "SdbCloseDatabase");
+    pSdbGetTagFromTagID = (void *) GetProcAddress(hdll, "SdbGetTagFromTagID");
+    pSdbGetFirstChild = (void *) GetProcAddress(hdll, "SdbGetFirstChild");
+    pSdbReadDWORDTag = (void *) GetProcAddress(hdll, "SdbReadDWORDTag");
+    pSdbReadQWORDTag = (void *) GetProcAddress(hdll, "SdbReadQWORDTag");
+    pSdbGetNextChild = (void *) GetProcAddress(hdll, "SdbGetNextChild");
+    pSdbGetStringTagPtr = (void *) GetProcAddress(hdll, "SdbGetStringTagPtr");
+    pSdbReadStringTag = (void *) GetProcAddress(hdll, "SdbReadStringTag");
 
+    test_Sdb();
+    test_SdbTagToString();
     test_ApphelpCheckShellObject();
 }
