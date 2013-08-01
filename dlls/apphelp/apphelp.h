@@ -17,6 +17,14 @@
  */
 
 typedef WORD TAG;
+typedef DWORD TAGID;
+
+typedef struct _DB {
+    HANDLE file;
+    DWORD size;
+    PBYTE data;
+    TAGID stringtable;
+} DB, *PDB;
 
 #define TAG_TYPE_MASK 0xF000
 

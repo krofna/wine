@@ -21,7 +21,6 @@
 #include "windef.h"
 #include "winbase.h"
 #include "apphelp.h"
-#include <appcompatapi.h>
 
 #include "wine/debug.h"
 
@@ -32,9 +31,6 @@ typedef enum _PATH_TYPE {
     DOS_PATH,
     NT_PATH
 } PATH_TYPE;
-
-/* FIXME: don't know where to place that typedef */
-typedef HANDLE PDB;
 
 BOOL WINAPI DllMain( HINSTANCE hinst, DWORD reason, LPVOID reserved )
 {
@@ -75,6 +71,24 @@ BOOL WINAPI ApphelpCheckShellObject( REFCLSID clsid, BOOL shim, ULONGLONG *flags
     TRACE("(%s, %d, %p)\n", debugstr_guid(clsid), shim, flags);
     if (flags) *flags = 0;
     return TRUE;
+}
+
+/**************************************************************************
+ *        SdbCloseDatabase                [APPHELP.@]
+ *
+ * Closes specified database and frees its memory
+ *
+ * PARAMS
+ *  db      [I] Handle to the shim database
+ *
+ * RETURNS
+ *  This function does not return a value.
+ */
+void WINAPI SdbCloseDatabase(PDB db)
+{
+    NtClose(db->file);
+    HeapFree(GetProcessHeap(), 0, db->data);
+    HeapFree(GetProcessHeap(), 0, db);
 }
 
 /**************************************************************************
