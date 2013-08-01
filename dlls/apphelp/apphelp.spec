@@ -113,6 +113,7 @@
 @ stub SdbReadApphelpDetailsData
 @ stub SdbReadBinaryTag
 @ stub SdbReadBYTETag
+@ stdcall SdbReadDWORDTag(ptr long long)
 @ stub SdbReadDWORDTagRef
 @ stub SdbReadEntryInformation
 @ stub SdbReadMsiTransformInfo

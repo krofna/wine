@@ -727,3 +727,43 @@ BOOL WINAPI SdbReadStringTag(PDB db, TAGID tagid, LPWSTR buffer, DWORD size)
     memcpy(buffer, string, string_size);
     return TRUE;
 }
+
+/**************************************************************************
+ *        SdbReadDWORDTag                [APPHELP.@]
+ *
+ * Reads DWORD value at specified tagid
+ *
+ * PARAMS
+ *  db          [I] Handle to the shim database
+ *  tagid       [I] TAGID of DWORD value
+ *  ret         [I] Default return value in case function fails
+ *
+ * RETURNS
+ *  Success: DWORD value at specified tagid
+ *  Failure: ret
+ */
+DWORD WINAPI SdbReadDWORDTag(PDB db, TAGID tagid, DWORD ret)
+{
+    TAG tag;
+
+    tag = SdbGetTagFromTagID(db, tagid);
+    if (tag == TAG_NULL)
+    {
+        TRACE("Failed to find tag for tagid %u\n", tagid);
+        return ret;
+    }
+
+    if ((tag & TAG_TYPE_MASK) != TAG_TYPE_DWORD)
+    {
+        TRACE("Tag associated with tagid %u is not a DWORD\n", tagid);
+        return ret;
+    }
+
+    if (!SdbReadData(db, &ret, tagid + 2, sizeof(DWORD)))
+    {
+        TRACE("Failed to read DWORD tag %s at tagid %u\n", debugstr_w(SdbTagToString(tag)), tagid);
+        return ret;
+    }
+
+    return ret;
+}
