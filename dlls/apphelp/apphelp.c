@@ -411,3 +411,36 @@ TAG WINAPI SdbGetTagFromTagID(PDB db, TAGID tagid)
 
     return data;
 }
+
+/**************************************************************************
+ *        SdbGetFirstChild                [APPHELP.@]
+ *
+ * Searches shim database for a child of specified parent tag
+ *
+ * PARAMS
+ *  db       [I] Handle to the shim database
+ *  parent   [I] TAGID of parent
+ *
+ * RETURNS
+ *  Success: TAGID associated with child tag
+ *  Failure: TAGID_NULL
+ */
+TAGID WINAPI SdbGetFirstChild(PDB db, TAGID parent)
+{
+    /* if we are at beginning of database */
+    if (parent == TAGID_ROOT)
+    {
+        /* header only database: no tags */
+        if (db->size <= _TAGID_ROOT)
+            return TAGID_NULL;
+        /* return *real* root tagid */
+        else return _TAGID_ROOT;
+    }
+
+    /* only list tag can have children */
+    if ((SdbGetTagFromTagID(db, parent) & TAG_TYPE_MASK) != TAG_TYPE_LIST)
+        return TAGID_NULL;
+
+    /* first child is sizeof(TAG) + sizeof(DWORD) bytes after beginning of list */
+    return parent + 6;
+}
