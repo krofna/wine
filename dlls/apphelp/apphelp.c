@@ -21,8 +21,11 @@
 #include "windef.h"
 #include "winbase.h"
 #include "apphelp.h"
+#include "winternl.h"
 
 #include "wine/debug.h"
+
+#define STATUS_SUCCESS ((NTSTATUS)0)
 
 WINE_DEFAULT_DEBUG_CHANNEL(apphelp);
 
@@ -528,4 +531,116 @@ TAGID WINAPI SdbGetNextChild(PDB db, TAGID parent, TAGID prev_child)
     }
 
     return next_child;
+}
+
+static PDB WINAPI SdbAlloc(void)
+{
+    PDB db;
+
+    db = (PDB)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(DB));
+
+    if (db)
+        db->file = INVALID_HANDLE_VALUE;
+
+    return db;
+}
+
+/**************************************************************************
+ *        SdbOpenDatabase                [APPHELP.@]
+ *
+ * Opens specified shim database file
+ *
+ * PARAMS
+ *  path      [I] Path to the shim database
+ *  type      [I] Type of path. Either DOS_PATH or NT_PATH
+ *
+ * RETURNS
+ *  Success: Handle to the shim database
+ *  Failure: NULL handle
+ */
+PDB WINAPI SdbOpenDatabase(LPCWSTR path, PATH_TYPE type)
+{
+    NTSTATUS status;
+    IO_STATUS_BLOCK io;
+    OBJECT_ATTRIBUTES attr;
+    UNICODE_STRING str;
+    PDB db;
+    BYTE header[12];
+    TAGID iter; /* iterator, used to locate stringtable */
+
+    TRACE("%s, 0x%x\n", debugstr_w(path), type);
+
+    db = SdbAlloc();
+    if (!db)
+    {
+        TRACE("Failed to allocate memory for shim database\n");
+        return NULL;
+    }
+
+    if (type == DOS_PATH)
+    {
+        if (!RtlDosPathNameToNtPathName_U(path, &str, NULL, NULL))
+            return NULL;
+    }
+    else
+        RtlInitUnicodeString(&str, path);
+
+    InitializeObjectAttributes(&attr, &str, OBJ_CASE_INSENSITIVE, NULL, NULL);
+
+    status = NtCreateFile(&db->file, FILE_GENERIC_READ,
+                          &attr, &io, NULL, FILE_ATTRIBUTE_NORMAL, FILE_SHARE_READ,
+                          FILE_OPEN, FILE_NON_DIRECTORY_FILE, NULL, 0);
+
+    if (type == DOS_PATH)
+        RtlFreeUnicodeString(&str);
+
+    if (status != STATUS_SUCCESS)
+    {
+        SdbCloseDatabase(db);
+        TRACE("Failed to open shim database file\n");
+        return NULL;
+    }
+
+    db->size = GetFileSize(db->file, NULL);
+    db->data = HeapAlloc(GetProcessHeap(), 0, db->size);
+    ReadFile(db->file, db->data, db->size, NULL, NULL);
+
+    if (!SdbReadData(db, &header, 0, 12))
+    {
+        SdbCloseDatabase(db);
+        TRACE("Failed to read shim database header\n");
+        return NULL;
+    }
+
+    if (memcmp(&header[8], "sdbf", 4) != 0)
+    {
+        SdbCloseDatabase(db);
+        TRACE("Shim database header is invalid\n");
+        return NULL;
+    }
+
+    if (*(DWORD*)&header[0] != (DWORD)2)
+    {
+        SdbCloseDatabase(db);
+        TRACE("Invalid shim database version\n");
+        return NULL;
+    }
+
+    /* Find stringtable, if one exists */
+    iter = SdbGetFirstChild(db, TAGID_ROOT);
+    while (iter < db->size)
+    {
+        if (SdbGetTagFromTagID(db, iter) == TAG_STRINGTABLE)
+        {
+            db->stringtable = iter;
+            break;
+        }
+        iter = SdbGetNextChild(db, TAGID_ROOT, iter);
+
+        /* Prevent infinite loop in case of malformed file */
+        if (iter == TAGID_NULL)
+            break;
+    }
+
+    return db;
 }
