@@ -71,7 +71,7 @@
 @ stub SdbGetMatchingExe
 @ stub SdbGetMsiPackageInformation
 @ stub SdbGetNamedLayer
-@ stub SdbGetNextChild
+@ stdcall SdbGetNextChild(ptr long long)
 @ stub SdbGetNthUserSdb
 @ stub SdbGetPermLayerKeys
 @ stub SdbGetShowDebugInfoOption

@@ -444,3 +444,88 @@ TAGID WINAPI SdbGetFirstChild(PDB db, TAGID parent)
     /* first child is sizeof(TAG) + sizeof(DWORD) bytes after beginning of list */
     return parent + 6;
 }
+
+static DWORD WINAPI SdbGetTagSize(PDB db, TAGID tagid)
+{
+    /* sizes of data types with fixed size + sizeof(TAG) */
+    static const SIZE_T sizes[6] = {
+        0 + 2, 1 + 2,
+        2 + 2, 4 + 2,
+        8 + 2, 4 + 2
+    };
+    WORD type;
+    DWORD size;
+
+    type = SdbGetTagFromTagID(db, tagid) & TAG_TYPE_MASK;
+
+    if (type == TAG_NULL)
+    {
+        TRACE("Invalid tagid\n");
+        return 0;
+    }
+
+    if (type <= TAG_TYPE_STRINGREF)
+        return sizes[(type >> 12) - 1];
+
+    /* tag with dynamic size (e.g. list): must read size */
+    if (!SdbReadData(db, &size, tagid + 2, 4))
+    {
+        TRACE("Failed to read size of tag!\n");
+        return 0;
+    }
+
+    /* add 4 because of size DWORD */
+    return size + 2 + 4;
+}
+
+/**************************************************************************
+ *        SdbGetNextChild                [APPHELP.@]
+ *
+ * Searches shim database for next child of specified parent tag
+ *
+ * PARAMS
+ *  db          [I] Handle to the shim database
+ *  parent      [I] TAGID of parent
+ *  prev_child  [I] TAGID of previous child
+ *
+ * RETURNS
+ *  Success: TAGID associated with next child tag
+ *  Failure: TAGID_NULL
+ */
+TAGID WINAPI SdbGetNextChild(PDB db, TAGID parent, TAGID prev_child)
+{
+    TAGID next_child;
+    DWORD prev_child_size, parent_size;
+
+    prev_child_size = SdbGetTagSize(db, prev_child);
+    if (prev_child_size == 0)
+    {
+        TRACE("Failed to read child tag size\n");
+        return TAGID_NULL;
+    }
+
+    next_child = prev_child + prev_child_size;
+    if (next_child >= db->size)
+    {
+        TRACE("Next child is beyond end of database, overflow!\n");
+        return TAGID_NULL;
+    }
+
+    if (parent == TAGID_ROOT)
+        return next_child;
+
+    parent_size = SdbGetTagSize(db, parent);
+    if (parent_size == 0)
+    {
+        TRACE("Failed to read parent tag size\n");
+        return TAGID_NULL;
+    }
+
+    if (next_child >= parent + parent_size + 6)
+    {
+        TRACE("Specified parent has no more children\n");
+        return TAGID_NULL;
+    }
+
+    return next_child;
+}
