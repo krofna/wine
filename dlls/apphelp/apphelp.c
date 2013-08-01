@@ -807,3 +807,21 @@ QWORD WINAPI SdbReadQWORDTag(PDB db, TAGID tagid, QWORD ret)
 
     return ret;
 }
+
+/**************************************************************************
+ *        SdbGetStringTagPtr                [APPHELP.@]
+ *
+ * Searches shim database for string associated with specified tagid
+ *
+ * PARAMS
+ *  db          [I] Handle to the shim database
+ *  tagid       [I] TAGID of string or stringref associated with the string
+ *
+ * RETURNS
+ *  Success: Pointer to string associated with specified tagid
+ *  Failure: NULL
+ */
+LPWSTR WINAPI SdbGetStringTagPtr(PDB db, TAGID tagid)
+{
+    return SdbGetString(db, tagid, NULL);
+}
