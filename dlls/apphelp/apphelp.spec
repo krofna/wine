@@ -119,7 +119,7 @@
 @ stub SdbReadPatchBits
 @ stub SdbReadQWORDTag
 @ stub SdbReadQWORDTagRef
-@ stub SdbReadStringTag
+@ stdcall SdbReadStringTag(ptr long wstr long)
 @ stub SdbReadStringTagRef
 @ stub SdbReadWORDTagRef
 @ stub SdbRegisterDatabase

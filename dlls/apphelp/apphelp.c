@@ -644,3 +644,86 @@ PDB WINAPI SdbOpenDatabase(LPCWSTR path, PATH_TYPE type)
 
     return db;
 }
+
+static LPWSTR WINAPI SdbGetString(PDB db, TAGID tagid, PDWORD size)
+{
+    TAG tag;
+    TAGID offset;
+
+    tag = SdbGetTagFromTagID(db, tagid);
+    if (!tag)
+        return NULL;
+
+    if ((tag & TAG_TYPE_MASK) == TAG_TYPE_STRINGREF)
+    {
+        if (db->stringtable == TAGID_NULL)
+        {
+            TRACE("stringref is invalid because there is no stringtable\n");
+            return NULL;
+        }
+
+        /* TAG_TYPE_STRINGREF contains offset of string relative to stringtable */
+        if (!SdbReadData(db, &tagid, tagid + sizeof(TAG), sizeof(TAGID)))
+            return NULL;
+
+        offset = db->stringtable + tagid + 6;
+    }
+    else if ((tag & TAG_TYPE_MASK) == TAG_TYPE_STRING)
+    {
+        offset = tagid + 6;
+    }
+    else
+    {
+        TRACE("Tag 0x%u at tagid %u is neither a string or reference to string\n", tag, tagid);
+        return NULL;
+    }
+
+    /* Optionally read string size */
+    if (size && !SdbReadData(db, size, tagid + 2, 4))
+    {
+        TRACE("Failed to read size of string!\n");
+        return FALSE;
+    }
+
+    return (LPWSTR)(&db->data[offset]);
+}
+
+/**************************************************************************
+ *        SdbReadStringTag                [APPHELP.@]
+ *
+ * Searches shim database for string associated with specified tagid
+ * and copies string into a bugger
+ *
+ * PARAMS
+ *  db          [I] Handle to the shim database
+ *  tagid       [I] TAGID of string or stringref associated with the string
+ *  buffer      [O] Buffer in which string will be copied
+ *  size        [I] Number of characters to copy
+ *
+ * RETURNS
+ *  TRUE if string was successfully copied to the buffer
+ *  FALSE if string was not copied to the buffer
+ *
+ * NOTES
+ *  If size parameter is less than number of characters in string, this
+ *  function shall fail and no data shall be copied
+ */
+BOOL WINAPI SdbReadStringTag(PDB db, TAGID tagid, LPWSTR buffer, DWORD size)
+{
+    LPWSTR string;
+    DWORD string_size;
+
+    string = SdbGetString(db, tagid, &string_size);
+    if (!string)
+        return FALSE;
+
+    if (size * sizeof(WCHAR) < string_size)
+    {
+        TRACE("Buffer of size %u is too small for string of size %u\n",
+              size * sizeof(WCHAR), string_size);
+        return FALSE;
+    }
+
+    memcpy(buffer, string, string_size);
+    return TRUE;
+}
