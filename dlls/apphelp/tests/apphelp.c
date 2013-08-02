@@ -45,6 +45,8 @@ static LPWSTR (WINAPI *pSdbGetStringTagPtr)(PDB, TAGID);
 static BOOL (WINAPI *pSdbReadStringTag)(PDB, TAGID, LPWSTR, DWORD);
 static PDB (WINAPI *pSdbCreateDatabase)(LPCWSTR, PATH_TYPE);
 static void (WINAPI *pSdbCloseDatabaseWrite)(PDB);
+static BOOL (WINAPI *pSdbWriteDWORDTag)(PDB, TAG, DWORD);
+static BOOL (WINAPI *pSdbWriteQWORDTag)(PDB, TAG, QWORD);
 
 DEFINE_GUID(GUID_NULL,0,0,0,0,0,0,0,0,0,0,0);
 
@@ -154,9 +156,10 @@ static void test_Sdb(void)
     };
     WCHAR buffer[6] = {0};
     PDB db;
+    QWORD qword;
+    DWORD dword;
+    BOOL ret;
     HANDLE file; /* temp file created for testing purpose */
-    DWORD value = 5;
-    QWORD value2 = 0xDEADBEEF;
     TAG tag;
     DWORD path_size = 5 * sizeof(WCHAR); /* size of path variable */
     TAGID tagid, stringref = 6, stringtable = path_size + 6;
@@ -164,15 +167,15 @@ static void test_Sdb(void)
 
     db = pSdbCreateDatabase(path, DOS_PATH);
     ok (db != NULL, "failed to create database");
+    ret = pSdbWriteDWORDTag(db, tags[0], 0xDEADBEEF);
+    ok (ret, "failed to write DWORD tag");
+    ret = pSdbWriteQWORDTag(db, tags[1], 0xDEADBEEFBABE);
+    ok (ret, "failed to write QWORD tag");
     pSdbCloseDatabaseWrite(db);
 
     file = CreateFileW(path, GENERIC_WRITE, 0, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     ok (file != INVALID_HANDLE_VALUE, "failed to open file");
-    SetFilePointer(file, 12, 0, FILE_BEGIN);
-    Write(file, &tags[0], 2);
-    Write(file, &value, 4);
-    Write(file, &tags[1], 2);
-    Write(file, &value2, 8);
+    SetFilePointer(file, 28, 0, FILE_BEGIN);
     Write(file, &tags[2], 2);
     Write(file, &stringref, 4);
     Write(file, &tags[3], 2);
@@ -195,8 +198,8 @@ static void test_Sdb(void)
     ok(lstrcmpW(string, tag_size_string) == 0, "unexpected string %s, expected %s\n",
        wine_dbgstr_w(string), wine_dbgstr_w(tag_size_string));
 
-    value = pSdbReadDWORDTag(db, tagid, 0);
-    ok(value == 5, "unexpected value %u, expected 5\n", value);
+    dword = pSdbReadDWORDTag(db, tagid, 0);
+    ok(dword == 0xDEADBEEF, "unexpected value %u, expected 0xDEADBEEF\n", dword);
 
     tagid = pSdbGetNextChild(db, TAGID_ROOT, tagid);
     ok(tagid == _TAGID_ROOT + sizeof(TAG) + sizeof(DWORD), "unexpected tagid %u, expected %u\n",
@@ -209,8 +212,8 @@ static void test_Sdb(void)
     ok(lstrcmpW(string, tag_flag_lua_string) == 0, "unexpected string %s, expected %s\n",
        wine_dbgstr_w(string), wine_dbgstr_w(tag_flag_lua_string));
 
-    value2 = pSdbReadQWORDTag(db, tagid, 0);
-    ok(value2 == 0xDEADBEEF, "unexpected value 0x%llx, expected 0x%x\n", value2, 0xDEADBEEF);
+    qword = pSdbReadQWORDTag(db, tagid, 0);
+    ok(qword == 0xDEADBEEFBABE, "unexpected value 0x%llx, expected 0xDEADBEEFBABE\n", qword);
 
     tagid = pSdbGetNextChild(db, TAGID_ROOT, tagid);
     string = pSdbGetStringTagPtr(db, tagid);
@@ -252,6 +255,8 @@ START_TEST(apphelp)
     pSdbReadStringTag = (void *) GetProcAddress(hdll, "SdbReadStringTag");
     pSdbCreateDatabase = (void *) GetProcAddress(hdll, "SdbCreateDatabase");
     pSdbCloseDatabaseWrite = (void *) GetProcAddress(hdll, "SdbCloseDatabaseWrite");
+    pSdbWriteDWORDTag = (void *) GetProcAddress(hdll, "SdbWriteDWORDTag");
+    pSdbWriteQWORDTag = (void *) GetProcAddress(hdll, "SdbWriteQWORDTag");
 
     test_Sdb();
     test_SdbTagToString();
