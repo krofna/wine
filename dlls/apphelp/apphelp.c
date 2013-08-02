@@ -1048,3 +1048,25 @@ BOOL WINAPI SdbWriteWORDTag(PDB db, TAG tag, WORD data)
     SdbWrite(db, &data, 2);
     return TRUE;
 }
+
+/**************************************************************************
+ *        SdbWriteNULLTag                [APPHELP.@]
+ *
+ * Writes a tag-only (NULL) entry to the specified shim database
+ *
+ * PARAMS
+ *  db        [I] Handle to the shim database
+ *  tag       [I] A tag for the entry
+ *
+ * RETURNS
+ *  TRUE if data was successfully written
+ *  FALSE otherwise
+ */
+BOOL WINAPI SdbWriteNULLTag(PDB db, TAG tag)
+{
+    if (!SdbCheckTagType(tag, TAG_TYPE_NULL))
+        return FALSE;
+
+    SdbWrite(db, &tag, 2);
+    return TRUE;
+}
