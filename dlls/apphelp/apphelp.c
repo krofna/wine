@@ -1000,3 +1000,27 @@ BOOL WINAPI SdbWriteQWORDTag(PDB db, TAG tag, QWORD data)
     SdbWrite(db, &data, 8);
     return TRUE;
 }
+
+/**************************************************************************
+ *        SdbWriteStringTag                [APPHELP.@]
+ *
+ * Writes a wide string entry to the specified shim database
+ *
+ * PARAMS
+ *  db        [I] Handle to the shim database
+ *  tag       [I] A tag for the entry
+ *  string    [I] Wide string entry which will be written to the database
+ *
+ * RETURNS
+ *  TRUE if data was successfully written
+ *  FALSE otherwise
+ */
+BOOL WINAPI SdbWriteStringTag(PDB db, TAG tag, LPCWSTR string)
+{
+    if (!SdbCheckTagType(tag, TAG_TYPE_STRING))
+        return FALSE;
+
+    SdbWrite(db, &tag, 2);
+    SdbWrite(db, string, (lstrlenW(string) + 1) * sizeof(WCHAR));
+    return TRUE;
+}

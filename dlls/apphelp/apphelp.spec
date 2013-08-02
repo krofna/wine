@@ -148,7 +148,7 @@
 @ stub SdbWriteNULLTag
 @ stdcall SdbWriteQWORDTag(ptr long int64)
 @ stub SdbWriteStringRefTag
-@ stub SdbWriteStringTag
+@ stdcall SdbWriteStringTag(ptr long wstr)
 @ stub SdbWriteStringTagDirect
 @ stub SdbWriteWORDTag
 @ stub SE_DllLoaded
