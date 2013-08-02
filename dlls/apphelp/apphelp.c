@@ -849,7 +849,7 @@ DWORD WINAPI SdbReadDWORDTag(PDB db, TAGID tagid, DWORD ret)
     tag = SdbGetTagFromTagID(db, tagid);
     if (tag == TAG_NULL)
     {
-        TRACE("Failed to find tag for tagid %u\n", tagid);
+        TRACE("Failed to find tag at tagid %u\n", tagid);
         return ret;
     }
 
@@ -889,7 +889,7 @@ QWORD WINAPI SdbReadQWORDTag(PDB db, TAGID tagid, QWORD ret)
     tag = SdbGetTagFromTagID(db, tagid);
     if (tag == TAG_NULL)
     {
-        TRACE("Failed to find tag for tagid %u\n", tagid);
+        TRACE("Failed to find tag at tagid %u\n", tagid);
         return ret;
     }
 
@@ -906,6 +906,39 @@ QWORD WINAPI SdbReadQWORDTag(PDB db, TAGID tagid, QWORD ret)
     }
 
     return ret;
+}
+
+/**************************************************************************
+ *        SdbGetBinaryTagData                 [APPHELP.@]
+ *
+ * Retrieves binary data at specified tagid
+ *
+ * PARAMS
+ *  db          [I] Handle to the shim database
+ *  tagid       [I] TAGID of binary data
+ *
+ * RETURNS
+ *  Success: Pointer to binary data at specified tagid
+ *  Failure: NULL
+ */
+PVOID WINAPI SdbGetBinaryTagData(PDB db, TAGID tagid)
+{
+    TAG tag;
+
+    tag = SdbGetTagFromTagID(db, tagid);
+    if (tag == TAG_NULL)
+    {
+        TRACE("Failed to find tag at tagid %u\n", tagid);
+        return NULL;
+    }
+
+    if ((tag & TAG_TYPE_MASK) != TAG_TYPE_BINARY)
+    {
+        TRACE("The tag associated with tagid %u is not of binary type\n", tagid);
+        return NULL;
+    }
+
+    return &db->data[tagid + 6];
 }
 
 /**************************************************************************
