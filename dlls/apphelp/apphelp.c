@@ -834,6 +834,21 @@ BOOL WINAPI SdbReadStringTag(PDB db, TAGID tagid, LPWSTR buffer, DWORD size)
     return TRUE;
 }
 
+static BOOL WINAPI SdbCheckTagType(TAG tag, WORD type)
+{
+    if ((tag & TAG_TYPE_MASK) != type)
+        return FALSE;
+    return TRUE;
+}
+
+static BOOL WINAPI SdbCheckTagIDType(PDB db, TAGID tagid, WORD type)
+{
+    TAG tag = SdbGetTagFromTagID(db, tagid);
+    if (tag == TAG_NULL)
+        return FALSE;
+    return SdbCheckTagType(tag, type);
+}
+
 /**************************************************************************
  *        SdbReadDWORDTag                [APPHELP.@]
  *
@@ -850,16 +865,7 @@ BOOL WINAPI SdbReadStringTag(PDB db, TAGID tagid, LPWSTR buffer, DWORD size)
  */
 DWORD WINAPI SdbReadDWORDTag(PDB db, TAGID tagid, DWORD ret)
 {
-    TAG tag;
-
-    tag = SdbGetTagFromTagID(db, tagid);
-    if (tag == TAG_NULL)
-    {
-        TRACE("Failed to find tag at tagid %u\n", tagid);
-        return ret;
-    }
-
-    if ((tag & TAG_TYPE_MASK) != TAG_TYPE_DWORD)
+    if (!SdbCheckTagIDType(db, tagid, TAG_TYPE_DWORD))
     {
         TRACE("Tag associated with tagid %u is not a DWORD\n", tagid);
         return ret;
@@ -867,7 +873,7 @@ DWORD WINAPI SdbReadDWORDTag(PDB db, TAGID tagid, DWORD ret)
 
     if (!SdbReadData(db, &ret, tagid + 2, sizeof(DWORD)))
     {
-        TRACE("Failed to read DWORD tag %s at tagid %u\n", debugstr_w(SdbTagToString(tag)), tagid);
+        TRACE("Failed to read DWORD tag at tagid %u\n", tagid);
         return ret;
     }
 
@@ -890,16 +896,7 @@ DWORD WINAPI SdbReadDWORDTag(PDB db, TAGID tagid, DWORD ret)
  */
 QWORD WINAPI SdbReadQWORDTag(PDB db, TAGID tagid, QWORD ret)
 {
-    TAG tag;
-
-    tag = SdbGetTagFromTagID(db, tagid);
-    if (tag == TAG_NULL)
-    {
-        TRACE("Failed to find tag at tagid %u\n", tagid);
-        return ret;
-    }
-
-    if ((tag & TAG_TYPE_MASK) != TAG_TYPE_QWORD)
+    if (!SdbCheckTagIDType(db, tagid, TAG_TYPE_QWORD))
     {
         TRACE("Tag associated with tagid %u is not a QWORD\n", tagid);
         return ret;
@@ -907,7 +904,7 @@ QWORD WINAPI SdbReadQWORDTag(PDB db, TAGID tagid, QWORD ret)
 
     if (!SdbReadData(db, &ret, tagid + 2, sizeof(QWORD)))
     {
-        TRACE("Failed to read QWORD tag %s at tagid %u\n", debugstr_w(SdbTagToString(tag)), tagid);
+        TRACE("Failed to read QWORD tag at tagid %u\n", tagid);
         return ret;
     }
 
@@ -929,18 +926,9 @@ QWORD WINAPI SdbReadQWORDTag(PDB db, TAGID tagid, QWORD ret)
  */
 PVOID WINAPI SdbGetBinaryTagData(PDB db, TAGID tagid)
 {
-    TAG tag;
-
-    tag = SdbGetTagFromTagID(db, tagid);
-    if (tag == TAG_NULL)
+    if (!SdbCheckTagIDType(db, tagid, TAG_TYPE_BINARY))
     {
-        TRACE("Failed to find tag at tagid %u\n", tagid);
-        return NULL;
-    }
-
-    if ((tag & TAG_TYPE_MASK) != TAG_TYPE_BINARY)
-    {
-        TRACE("The tag associated with tagid %u is not of binary type\n", tagid);
+        TRACE("The tag associated with tagid %u is not of type BINARY\n", tagid);
         return NULL;
     }
 
@@ -963,4 +951,28 @@ PVOID WINAPI SdbGetBinaryTagData(PDB db, TAGID tagid)
 LPWSTR WINAPI SdbGetStringTagPtr(PDB db, TAGID tagid)
 {
     return SdbGetString(db, tagid, NULL);
+}
+
+/**************************************************************************
+ *        SdbWriteDWORDTag                [APPHELP.@]
+ *
+ * Writes a DWORD entry to the specified shim database
+ *
+ * PARAMS
+ *  db        [I] Handle to the shim database
+ *  tag       [I] A tag for the entry
+ *  data      [I] DWORD entry which will be written to the database
+ *
+ * RETURNS
+ *  TRUE if data was successfully written
+ *  FALSE otherwise
+ */
+BOOL WINAPI SdbWriteDWORDTag(PDB db, TAG tag, DWORD data)
+{
+    if (!SdbCheckTagType(tag, TAG_TYPE_DWORD))
+        return FALSE;
+
+    SdbWrite(db, &tag, 2);
+    SdbWrite(db, &data, 4);
+    return TRUE;
 }

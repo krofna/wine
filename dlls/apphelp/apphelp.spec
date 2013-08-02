@@ -144,7 +144,7 @@
 @ stub SdbWriteBinaryTag
 @ stub SdbWriteBinaryTagFromFile
 @ stub SdbWriteBYTETag
-@ stub SdbWriteDWORDTag
+@ stdcall SdbWriteDWORDTag(ptr long long)
 @ stub SdbWriteNULLTag
 @ stub SdbWriteQWORDTag
 @ stub SdbWriteStringRefTag
