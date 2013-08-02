@@ -1024,3 +1024,27 @@ BOOL WINAPI SdbWriteStringTag(PDB db, TAG tag, LPCWSTR string)
     SdbWrite(db, string, (lstrlenW(string) + 1) * sizeof(WCHAR));
     return TRUE;
 }
+
+/**************************************************************************
+ *        SdbWriteWORDTag                [APPHELP.@]
+ *
+ * Writes a WORD entry to the specified shim database
+ *
+ * PARAMS
+ *  db        [I] Handle to the shim database
+ *  tag       [I] A tag for the entry
+ *  data      [I] WORD entry which will be written to the database
+ *
+ * RETURNS
+ *  TRUE if data was successfully written
+ *  FALSE otherwise
+ */
+BOOL WINAPI SdbWriteWORDTag(PDB db, TAG tag, WORD data)
+{
+    if (!SdbCheckTagType(tag, TAG_TYPE_WORD))
+        return FALSE;
+
+    SdbWrite(db, &tag, 2);
+    SdbWrite(db, &data, 2);
+    return TRUE;
+}

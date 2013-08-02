@@ -150,7 +150,7 @@
 @ stub SdbWriteStringRefTag
 @ stdcall SdbWriteStringTag(ptr long wstr)
 @ stub SdbWriteStringTagDirect
-@ stub SdbWriteWORDTag
+@ stdcall SdbWriteWORDTag(ptr long long)
 @ stub SE_DllLoaded
 @ stub SE_DllUnloaded
 @ stub SE_GetHookAPIs
