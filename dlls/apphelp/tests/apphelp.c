@@ -43,6 +43,8 @@ static TAGID (WINAPI *pSdbGetFirstChild)(PDB, TAGID);
 static TAGID (WINAPI *pSdbGetNextChild)(PDB, TAGID, TAGID);
 static LPWSTR (WINAPI *pSdbGetStringTagPtr)(PDB, TAGID);
 static BOOL (WINAPI *pSdbReadStringTag)(PDB, TAGID, LPWSTR, DWORD);
+static PDB (WINAPI *pSdbCreateDatabase)(LPCWSTR, PATH_TYPE);
+static void (WINAPI *pSdbCloseDatabaseWrite)(PDB);
 
 DEFINE_GUID(GUID_NULL,0,0,0,0,0,0,0,0,0,0,0);
 
@@ -153,7 +155,6 @@ static void test_Sdb(void)
     WCHAR buffer[6] = {0};
     PDB db;
     HANDLE file; /* temp file created for testing purpose */
-    DWORD two = 2, one = 1; /* version magic */
     DWORD value = 5;
     QWORD value2 = 0xDEADBEEF;
     TAG tag;
@@ -161,17 +162,13 @@ static void test_Sdb(void)
     TAGID tagid, stringref = 6, stringtable = path_size + 6;
     LPCWSTR string;
 
-    file = CreateFileW(path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
+    db = pSdbCreateDatabase(path, DOS_PATH);
+    ok (db != NULL, "failed to create database");
+    pSdbCloseDatabaseWrite(db);
 
-    if (file == INVALID_HANDLE_VALUE)
-    {
-        ok(FALSE, "could not perform test because temp file could not be created\n");
-        return;
-    }
-
-    Write(file, &two, 4);
-    Write(file, &one, 4);
-    Write(file, "sdbf", 4);
+    file = CreateFileW(path, GENERIC_WRITE, 0, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    ok (file != INVALID_HANDLE_VALUE, "failed to open file");
+    SetFilePointer(file, 12, 0, FILE_BEGIN);
     Write(file, &tags[0], 2);
     Write(file, &value, 4);
     Write(file, &tags[1], 2);
@@ -253,6 +250,8 @@ START_TEST(apphelp)
     pSdbGetNextChild = (void *) GetProcAddress(hdll, "SdbGetNextChild");
     pSdbGetStringTagPtr = (void *) GetProcAddress(hdll, "SdbGetStringTagPtr");
     pSdbReadStringTag = (void *) GetProcAddress(hdll, "SdbReadStringTag");
+    pSdbCreateDatabase = (void *) GetProcAddress(hdll, "SdbCreateDatabase");
+    pSdbCloseDatabaseWrite = (void *) GetProcAddress(hdll, "SdbCloseDatabaseWrite");
 
     test_Sdb();
     test_SdbTagToString();

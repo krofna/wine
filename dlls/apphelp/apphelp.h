@@ -25,12 +25,15 @@ typedef struct _DB {
     DWORD size;
     PBYTE data;
     TAGID stringtable;
+    DWORD write_iter;
 } DB, *PDB;
 
 typedef enum _PATH_TYPE {
     DOS_PATH,
     NT_PATH
 } PATH_TYPE;
+
+void WINAPI SdbCloseDatabase(PDB);
 
 #define TAGID_NULL 0x0
 #define TAGID_ROOT 0x0
