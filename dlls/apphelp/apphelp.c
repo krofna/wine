@@ -1070,3 +1070,69 @@ BOOL WINAPI SdbWriteNULLTag(PDB db, TAG tag)
     SdbWrite(db, &tag, 2);
     return TRUE;
 }
+
+PVOID WINAPI SdbOpenMemMappedFile(LPCWSTR path, PHANDLE file, PHANDLE mapping, PDWORD size)
+{
+    PVOID view;
+
+    *file = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+    if (*file == INVALID_HANDLE_VALUE)
+    {
+        TRACE("Failed to open file %s\n", debugstr_w(path));
+        return NULL;
+    }
+
+    *mapping = CreateFileMappingW(*file, NULL, PAGE_READONLY, 0, 0, NULL);
+    if (*mapping == INVALID_HANDLE_VALUE)
+    {
+        TRACE("Failed to create mapping for file");
+        return NULL;
+    }
+
+    *size = GetFileSize(*file, NULL);
+    view = MapViewOfFile(*mapping, FILE_MAP_READ, 0, 0, *size);
+    if (!view)
+    {
+        TRACE("Failed to map view of file");
+        return NULL;
+    }
+
+    return view;
+}
+
+/**************************************************************************
+ *        SdbWriteBinaryTagFromFile                [APPHELP.@]
+ *
+ * Writes data from a file to the specified shim database
+ *
+ * PARAMS
+ *  db        [I] Handle to the shim database
+ *  tag       [I] A tag for the entry
+ *  path      [I] Path of the input file
+ *
+ * RETURNS
+ *  TRUE if data was successfully written
+ *  FALSE otherwise
+ */
+BOOL WINAPI SdbWriteBinaryTagFromFile(PDB db, TAG tag, LPCWSTR path)
+{
+    HANDLE file, mapping;
+    DWORD size;
+    LPVOID view;
+
+    if (!SdbCheckTagType(tag, TAG_TYPE_BINARY))
+        return FALSE;
+
+    view = SdbOpenMemMappedFile(path, &file, &mapping, &size);
+    if (!view)
+        return FALSE;
+
+    SdbWrite(db, &tag, 2);
+    SdbWrite(db, &size, 4);
+    SdbWrite(db, view, size);
+    db->write_iter += size;
+
+    CloseHandle(mapping);
+    CloseHandle(file);
+    return TRUE;
+}

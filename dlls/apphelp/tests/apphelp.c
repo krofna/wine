@@ -47,6 +47,7 @@ static PDB (WINAPI *pSdbCreateDatabase)(LPCWSTR, PATH_TYPE);
 static void (WINAPI *pSdbCloseDatabaseWrite)(PDB);
 static BOOL (WINAPI *pSdbWriteDWORDTag)(PDB, TAG, DWORD);
 static BOOL (WINAPI *pSdbWriteQWORDTag)(PDB, TAG, QWORD);
+static BOOL (WINAPI *pSdbWriteBinaryTagFromFile)(PDB, TAG, LPCWSTR);
 
 DEFINE_GUID(GUID_NULL,0,0,0,0,0,0,0,0,0,0,0);
 
@@ -148,6 +149,7 @@ static void Write(HANDLE file, LPCVOID buffer, DWORD size)
 static void test_Sdb(void)
 {
     static const WCHAR path[] = {'t','e','m','p',0};
+    static const WCHAR path2[] = {'t','e','m','p','2',0};
     static const WCHAR tag_size_string[] = {'S','I','Z','E',0};
     static const WCHAR tag_flag_lua_string[] = {'F','L','A','G','_','L','U','A',0};
     static const TAG tags[5] = {
@@ -232,6 +234,18 @@ static void test_Sdb(void)
 
     pSdbCloseDatabase(db);
     DeleteFileW(path);
+
+    file = CreateFileW(path2, GENERIC_WRITE, 0, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    ok (file != INVALID_HANDLE_VALUE, "failed to open file\n");
+    Write(file, &qword, 8);
+    CloseHandle(file);
+
+    db = pSdbCreateDatabase(path, DOS_PATH);
+    ok(db != NULL, "unexpected NULL handle\n");
+
+    ret = pSdbWriteBinaryTagFromFile(db, TAG_DATA_BITS, path2);
+    ok (ret, "failed to write tag from binary file\n");
+    pSdbCloseDatabaseWrite(db);
 }
 
 START_TEST(apphelp)
@@ -257,6 +271,7 @@ START_TEST(apphelp)
     pSdbCloseDatabaseWrite = (void *) GetProcAddress(hdll, "SdbCloseDatabaseWrite");
     pSdbWriteDWORDTag = (void *) GetProcAddress(hdll, "SdbWriteDWORDTag");
     pSdbWriteQWORDTag = (void *) GetProcAddress(hdll, "SdbWriteQWORDTag");
+    pSdbWriteBinaryTagFromFile = (void *) GetProcAddress(hdll, "SdbWriteBinaryTagFromFile");
 
     test_Sdb();
     test_SdbTagToString();

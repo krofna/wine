@@ -142,7 +142,7 @@
 @ stdcall SdbTagToString(long)
 @ stub SdbUnregisterDatabase
 @ stub SdbWriteBinaryTag
-@ stub SdbWriteBinaryTagFromFile
+@ stdcall SdbWriteBinaryTagFromFile(ptr long wstr)
 @ stub SdbWriteBYTETag
 @ stdcall SdbWriteDWORDTag(ptr long long)
 @ stdcall SdbWriteNULLTag(ptr long)
