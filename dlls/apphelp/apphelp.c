@@ -56,6 +56,12 @@ BOOL WINAPI ApphelpCheckMsiPackage( void* ptr, LPCWSTR path )
     return TRUE;
 }
 
+HMODULE WINAPI SdbOpenApphelpResourceFile(LPCWSTR path)
+{
+    FIXME("stub: %s\n", debugstr_w(path));
+    return NULL;
+}
+
 static void WINAPI SdbFlush(PDB db)
 {
     WriteFile(db->file, db->data, db->write_iter, NULL, NULL);
