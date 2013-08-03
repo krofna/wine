@@ -639,6 +639,34 @@ TAGID WINAPI SdbGetNextChild(PDB db, TAGID parent, TAGID prev_child)
     return next_child;
 }
 
+/**************************************************************************
+ *        SdbFindFirstTag                [APPHELP.@]
+ *
+ * Searches shim database for a tag within specified domain
+ *
+ * PARAMS
+ *  db          [I] Handle to the shim database
+ *  parent      [I] TAGID of parent
+ *  tag         [I] TAG to be located
+ *
+ * RETURNS
+ *  Success: TAGID associated with first matching tag
+ *  Failure: TAGID_NULL
+ */
+TAGID WINAPI SdbFindFirstTag(PDB db, TAGID parent, TAG tag)
+{
+    TAGID iter = SdbGetFirstChild(db, parent);
+
+    while (iter < db->size && iter != TAGID_NULL)
+    {
+        if (SdbGetTagFromTagID(db, iter) == tag)
+            return iter;
+        iter = SdbGetNextChild(db, TAGID_ROOT, iter);
+    }
+
+    return TAGID_NULL;
+}
+
 static PDB WINAPI SdbAlloc(void)
 {
     PDB db;
@@ -672,7 +700,6 @@ PDB WINAPI SdbOpenDatabase(LPCWSTR path, PATH_TYPE type)
     UNICODE_STRING str;
     PDB db;
     BYTE header[12];
-    TAGID iter; /* iterator, used to locate stringtable */
 
     TRACE("%s, 0x%x\n", debugstr_w(path), type);
 
@@ -732,21 +759,7 @@ PDB WINAPI SdbOpenDatabase(LPCWSTR path, PATH_TYPE type)
         return NULL;
     }
 
-    /* Find stringtable, if one exists */
-    iter = SdbGetFirstChild(db, TAGID_ROOT);
-    while (iter < db->size)
-    {
-        if (SdbGetTagFromTagID(db, iter) == TAG_STRINGTABLE)
-        {
-            db->stringtable = iter;
-            break;
-        }
-        iter = SdbGetNextChild(db, TAGID_ROOT, iter);
-
-        /* Prevent infinite loop in case of malformed file */
-        if (iter == TAGID_NULL)
-            break;
-    }
+    db->stringtable = SdbFindFirstTag(db, TAGID_ROOT, TAG_STRINGTABLE);
 
     return db;
 }

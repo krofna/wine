@@ -40,7 +40,7 @@
 @ stub SdbFindFirstMsiPackage_Str
 @ stub SdbFindFirstNamedTag
 @ stub SdbFindFirstStringIndexedTag
-@ stub SdbFindFirstTag
+@ stdcall SdbFindFirstTag(ptr long long)
 @ stub SdbFindFirstTagRef
 @ stub SdbFindNextDWORDIndexedTag
 @ stub SdbFindNextMsiPackage
