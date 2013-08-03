@@ -639,6 +639,10 @@ TAGID WINAPI SdbGetNextChild(PDB db, TAGID parent, TAGID prev_child)
     return next_child;
 }
 
+TAGID WINAPI SdbFindNextTag(PDB db, TAGID parent, TAGID prev_child)
+{
+}
+
 /**************************************************************************
  *        SdbFindFirstTag                [APPHELP.@]
  *

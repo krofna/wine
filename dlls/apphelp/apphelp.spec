@@ -45,7 +45,7 @@
 @ stub SdbFindNextDWORDIndexedTag
 @ stub SdbFindNextMsiPackage
 @ stub SdbFindNextStringIndexedTag
-@ stub SdbFindNextTag
+@ stdcall SdbFindNextTag(ptr long long)
 @ stub SdbFindNextTagRef
 @ stub SdbFreeDatabaseInformation
 @ stub SdbFreeFileInfo
