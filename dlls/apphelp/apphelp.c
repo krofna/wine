@@ -1105,6 +1105,32 @@ static PVOID WINAPI SdbOpenMemMappedFile(LPCWSTR path, PHANDLE file, PHANDLE map
 }
 
 /**************************************************************************
+ *        SdbWriteBinaryTag                [APPHELP.@]
+ *
+ * Writes data the specified shim database
+ *
+ * PARAMS
+ *  db        [I] Handle to the shim database
+ *  tag       [I] A tag for the entry
+ *  data      [I] Pointer to data
+ *  size      [I] Number of bytes to write
+ *
+ * RETURNS
+ *  TRUE if data was successfully written
+ *  FALSE otherwise
+ */
+BOOL WINAPI SdbWriteBinaryTag(PDB db, TAG tag, PBYTE data, DWORD size)
+{
+    if (!SdbCheckTagType(tag, TAG_TYPE_BINARY))
+        return FALSE;
+
+    SdbWrite(db, &tag, 2);
+    SdbWrite(db, &size, 4);
+    SdbWrite(db, data, size);
+    return TRUE;
+}
+
+/**************************************************************************
  *        SdbWriteBinaryTagFromFile                [APPHELP.@]
  *
  * Writes data from a file to the specified shim database
@@ -1131,10 +1157,7 @@ BOOL WINAPI SdbWriteBinaryTagFromFile(PDB db, TAG tag, LPCWSTR path)
     if (!view)
         return FALSE;
 
-    SdbWrite(db, &tag, 2);
-    SdbWrite(db, &size, 4);
-    SdbWrite(db, view, size);
-    db->write_iter += size;
+    SdbWriteBinaryTag(db, tag, view, size);
 
     CloseHandle(mapping);
     CloseHandle(file);
