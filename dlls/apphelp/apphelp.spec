@@ -111,7 +111,7 @@
 @ stub SdbQueryReinstallUpgrade
 @ stub SdbReadApphelpData
 @ stub SdbReadApphelpDetailsData
-@ stub SdbReadBinaryTag
+@ stdcall SdbReadBinaryTag(ptr long ptr long)
 @ stub SdbReadBYTETag
 @ stdcall SdbReadDWORDTag(ptr long long)
 @ stub SdbReadDWORDTagRef

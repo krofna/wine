@@ -1139,6 +1139,30 @@ BOOL WINAPI SdbWriteBinaryTagFromFile(PDB db, TAG tag, LPCWSTR path)
 
 BOOL WINAPI SdbGetFileAttributes(LPCWSTR path, PATTRINFO *attr_info, LPDWORD attr_count)
 {
-    FIXME("stub: %s %p %p\n", ptr, debugstr_w(path));
+    FIXME("stub: %s %p %p\n", debugstr_w(path), attr_info, attr_count);
     return FALSE;
+}
+
+/**************************************************************************
+ *        SdbReadBinaryTag                [APPHELP.@]
+ *
+ * Reads binary data at specified tagid
+ *
+ * PARAMS
+ *  db          [I] Handle to the shim database
+ *  tagid       [I] TAGID of binary data
+ *  buffer      [O] Buffer in which data will be copied
+ *  size        [I] Size of the buffer
+ *
+ * RETURNS
+ *  TRUE if data was successfully written
+ *  FALSE otherwise
+ */
+BOOL WINAPI SdbReadBinaryTag(PDB db, TAGID tagid, PBYTE buffer, DWORD size)
+{
+    if (!SdbCheckTagIDType(db, tagid, TAG_TYPE_BINARY))
+        return FALSE;
+
+    /* TODO: Error checking */
+    return SdbReadData(db, buffer, tagid, size);
 }
