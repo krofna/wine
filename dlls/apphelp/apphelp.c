@@ -479,13 +479,13 @@ static BOOL WINAPI SdbReadData(PDB db, PVOID dest, DWORD offset, DWORD num)
 
     if (!SdbSafeAdd(offset, num, &size))
     {
-        TRACE("Failed to add %u and %u, overflow!", offset, num);
+        TRACE("Failed to add %u and %u, overflow!\n", offset, num);
         return FALSE;
     }
 
     if (db->size < size)
     {
-        TRACE("Cannot read %u bytes starting at %u from database of size %u, overflow!",
+        TRACE("Cannot read %u bytes starting at %u from database of size %u, overflow!\n",
               num, offset, db->size);
         return FALSE;
     }
@@ -1017,11 +1017,15 @@ BOOL WINAPI SdbWriteQWORDTag(PDB db, TAG tag, QWORD data)
  */
 BOOL WINAPI SdbWriteStringTag(PDB db, TAG tag, LPCWSTR string)
 {
+    DWORD size;
+
     if (!SdbCheckTagType(tag, TAG_TYPE_STRING))
         return FALSE;
 
+    size = (lstrlenW(string) + 1) * sizeof(WCHAR);
     SdbWrite(db, &tag, 2);
-    SdbWrite(db, string, (lstrlenW(string) + 1) * sizeof(WCHAR));
+    SdbWrite(db, &size, 4);
+    SdbWrite(db, string, size);
     return TRUE;
 }
 

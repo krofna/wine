@@ -49,6 +49,7 @@ static BOOL (WINAPI *pSdbWriteDWORDTag)(PDB, TAG, DWORD);
 static BOOL (WINAPI *pSdbWriteQWORDTag)(PDB, TAG, QWORD);
 static BOOL (WINAPI *pSdbWriteBinaryTagFromFile)(PDB, TAG, LPCWSTR);
 static PVOID (WINAPI *pSdbGetBinaryTagData)(PDB, TAGID);
+static BOOL (WINAPI *pSdbWriteStringTag)(PDB, TAG, LPCWSTR);
 
 DEFINE_GUID(GUID_NULL,0,0,0,0,0,0,0,0,0,0,0);
 
@@ -124,7 +125,6 @@ static void test_ApphelpCheckShellObject(void)
 
 static void test_SdbTagToString(void)
 {
-    WORD i;
     static const TAG invalid_values[] = {
         1, TAG_TYPE_WORD, TAG_TYPE_MASK,
         TAG_TYPE_DWORD | 0xFF,
@@ -133,6 +133,7 @@ static void test_SdbTagToString(void)
     };
     static const WCHAR invalid[] = {'I','n','v','a','l','i','d','T','a','g',0};
     LPCWSTR ret;
+    WORD i;
 
     for (i = 0; i < 9; ++i)
     {
@@ -281,6 +282,7 @@ START_TEST(apphelp)
     pSdbWriteQWORDTag = (void *) GetProcAddress(hdll, "SdbWriteQWORDTag");
     pSdbWriteBinaryTagFromFile = (void *) GetProcAddress(hdll, "SdbWriteBinaryTagFromFile");
     pSdbGetBinaryTagData = (void *) GetProcAddress(hdll, "SdbGetBinaryTagData");
+    pSdbWriteStringTag = (void *) GetProcAddress(hdll, "SdbWriteStringTag");
 
     test_Sdb();
     test_SdbTagToString();
