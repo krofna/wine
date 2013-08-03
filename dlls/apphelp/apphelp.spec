@@ -20,6 +20,7 @@
 @ stub SdbAddLayerTagRefToQuery
 @ stub SdbApphelpNotify
 @ stub SdbApphelpNotifyExSdbApphelpNotifyEx
+@ stdcall SdbBeginWriteListTag(ptr long)
 @ stub SdbBuildCompatEnvVariables
 @ stub SdbCloseApphelpInformation
 @ stdcall SdbCloseDatabase(ptr)

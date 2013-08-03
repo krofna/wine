@@ -1170,3 +1170,29 @@ BOOL WINAPI SdbReadBinaryTag(PDB db, TAGID tagid, PBYTE buffer, DWORD size)
     /* TODO: Error checking */
     return SdbReadData(db, buffer, tagid, size);
 }
+
+/**************************************************************************
+ *        SdbBeginWriteListTag                [APPHELP.@]
+ *
+ * Writes a list tag to specified database
+ *
+ * PARAMS
+ *  db          [I] Handle to the shim database
+ *  tag         [I] TAGID of binary data
+ *
+ * RETURNS
+ *  Success: TAGID of the newly created list
+ *  Failure: TAGID_NULL
+ *
+ * NOTES
+ * All subsequent SdbWrite* functions shall write to newly created list
+ * untill TAGID of that list is passed to SdbEndWriteListTag
+ */
+TAGID WINAPI SdbBeginWriteListTag(PDB db, TAG tag)
+{
+    if (!SdbCheckTagType(db, tag, TAG_TYPE_LIST))
+        return TAGID_NULL;
+
+    SdbWrite(db, &tag, 2);
+    return db->write_iter - 2;
+}
