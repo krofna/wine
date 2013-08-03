@@ -501,7 +501,7 @@ static BOOL WINAPI SdbReadData(PDB db, PVOID dest, DWORD offset, DWORD num)
  *
  * PARAMS
  *  db      [I] Handle to the shim database
- *  tagid   [I] The TAGID associated with the the tag
+ *  tagid   [I] The TAGID of the tag
  *
  * RETURNS
  *  Success: The tag associated with specified tagid
@@ -531,7 +531,7 @@ TAG WINAPI SdbGetTagFromTagID(PDB db, TAGID tagid)
  *  parent   [I] TAGID of parent
  *
  * RETURNS
- *  Success: TAGID associated with child tag
+ *  Success: TAGID of child tag
  *  Failure: TAGID_NULL
  */
 TAGID WINAPI SdbGetFirstChild(PDB db, TAGID parent)
@@ -598,7 +598,7 @@ static DWORD WINAPI SdbGetTagSize(PDB db, TAGID tagid)
  *  prev_child  [I] TAGID of previous child
  *
  * RETURNS
- *  Success: TAGID associated with next child tag
+ *  Success: TAGID of next child tag
  *  Failure: TAGID_NULL
  */
 TAGID WINAPI SdbGetNextChild(PDB db, TAGID parent, TAGID prev_child)
@@ -639,8 +639,34 @@ TAGID WINAPI SdbGetNextChild(PDB db, TAGID parent, TAGID prev_child)
     return next_child;
 }
 
+/**************************************************************************
+ *        SdbFindNextTag                [APPHELP.@]
+ *
+ * Searches shim database for a next tag which matches prev_child
+ * within parent's domain
+ *
+ * PARAMS
+ *  db          [I] Handle to the shim database
+ *  parent      [I] TAGID of parent
+ *  prev_child  [I] TAGID of previous match
+ *
+ * RETURNS
+ *  Success: TAGID of next match
+ *  Failure: TAGID_NULL
+ */
 TAGID WINAPI SdbFindNextTag(PDB db, TAGID parent, TAGID prev_child)
 {
+    TAG tag = SdbGetTagFromTagID(db, prev_child);
+    TAGID iter = SdbGetNextChild(db, parent, prev_child);
+
+    while (iter != TAGID_NULL)
+    {
+        if (SdbGetTagFromTagID(db, iter) == tag)
+            return iter;
+        iter = SdbGetNextChild(db, parent, iter);
+    }
+
+    return TAGID_NULL;
 }
 
 /**************************************************************************
@@ -654,18 +680,18 @@ TAGID WINAPI SdbFindNextTag(PDB db, TAGID parent, TAGID prev_child)
  *  tag         [I] TAG to be located
  *
  * RETURNS
- *  Success: TAGID associated with first matching tag
+ *  Success: TAGID of first matching tag
  *  Failure: TAGID_NULL
  */
 TAGID WINAPI SdbFindFirstTag(PDB db, TAGID parent, TAG tag)
 {
     TAGID iter = SdbGetFirstChild(db, parent);
 
-    while (iter < db->size && iter != TAGID_NULL)
+    while (iter != TAGID_NULL)
     {
         if (SdbGetTagFromTagID(db, iter) == tag)
             return iter;
-        iter = SdbGetNextChild(db, TAGID_ROOT, iter);
+        iter = SdbGetNextChild(db, parent, iter);
     }
 
     return TAGID_NULL;
