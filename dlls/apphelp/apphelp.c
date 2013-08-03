@@ -1071,7 +1071,7 @@ BOOL WINAPI SdbWriteNULLTag(PDB db, TAG tag)
     return TRUE;
 }
 
-PVOID WINAPI SdbOpenMemMappedFile(LPCWSTR path, PHANDLE file, PHANDLE mapping, PDWORD size)
+static PVOID WINAPI SdbOpenMemMappedFile(LPCWSTR path, PHANDLE file, PHANDLE mapping, PDWORD size)
 {
     PVOID view;
 
@@ -1135,4 +1135,10 @@ BOOL WINAPI SdbWriteBinaryTagFromFile(PDB db, TAG tag, LPCWSTR path)
     CloseHandle(mapping);
     CloseHandle(file);
     return TRUE;
+}
+
+BOOL WINAPI SdbGetFileAttributes(LPCWSTR path, PATTRINFO *attr_info, LPDWORD attr_count)
+{
+    FIXME("stub: %s %p %p\n", ptr, debugstr_w(path));
+    return FALSE;
 }

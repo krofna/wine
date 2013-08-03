@@ -28,12 +28,25 @@ typedef struct _DB {
     DWORD write_iter;
 } DB, *PDB;
 
+typedef struct tagATTRINFO {
+  TAG   type;
+  DWORD flags;
+  union {
+    QWORD dwattr;
+    DWORD qwattr;
+    WCHAR *lpattr; // ??? TCHAR ???
+  };
+} ATTRINFO, *PATTRINFO;
+
 typedef enum _PATH_TYPE {
     DOS_PATH,
     NT_PATH
 } PATH_TYPE;
 
 void WINAPI SdbCloseDatabase(PDB);
+
+#define ATTRIBUTE_AVAILABLE 0x1
+#define ATTRIBUTE_FAILED 0x2
 
 #define TAGID_NULL 0x0
 #define TAGID_ROOT 0x0
