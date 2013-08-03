@@ -50,6 +50,9 @@ static BOOL (WINAPI *pSdbWriteQWORDTag)(PDB, TAG, QWORD);
 static BOOL (WINAPI *pSdbWriteBinaryTagFromFile)(PDB, TAG, LPCWSTR);
 static PVOID (WINAPI *pSdbGetBinaryTagData)(PDB, TAGID);
 static BOOL (WINAPI *pSdbWriteStringTag)(PDB, TAG, LPCWSTR);
+static TAGID (WINAPI *pSdbBeginWriteListTag)(PDB, TAG);
+static BOOL (WINAPI *pSdbEndWriteListTag)(PDB, TAGID);
+static BOOL (WINAPI *pSdbWriteStringRefTag)(PDB, TAG, TAGID);
 
 DEFINE_GUID(GUID_NULL,0,0,0,0,0,0,0,0,0,0,0);
 
@@ -171,18 +174,18 @@ static void test_Sdb(void)
     PBYTE binary;
 
     db = pSdbCreateDatabase(path, DOS_PATH);
-    ok (db != NULL, "failed to create database");
+    ok (db != NULL, "failed to create database\n");
     ret = pSdbWriteDWORDTag(db, tags[0], 0xDEADBEEF);
-    ok (ret, "failed to write DWORD tag");
+    ok (ret, "failed to write DWORD tag\n");
     ret = pSdbWriteQWORDTag(db, tags[1], 0xDEADBEEFBABE);
-    ok (ret, "failed to write QWORD tag");
+    ok (ret, "failed to write QWORD tag\n");
+    ret = pSdbWriteStringRefTag(db, tags[2], stringref);
+    ok (ret, "failed to write stringref tag\n");
     pSdbCloseDatabaseWrite(db);
 
     file = CreateFileW(path, GENERIC_WRITE, 0, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-    ok (file != INVALID_HANDLE_VALUE, "failed to open file");
-    SetFilePointer(file, 28, 0, FILE_BEGIN);
-    Write(file, &tags[2], 2);
-    Write(file, &stringref, 4);
+    ok (file != INVALID_HANDLE_VALUE, "failed to open file\n");
+    SetFilePointer(file, 34, 0, FILE_BEGIN);
     Write(file, &tags[3], 2);
     Write(file, &stringtable, 4);
     Write(file, &tags[4], 2);
@@ -283,6 +286,9 @@ START_TEST(apphelp)
     pSdbWriteBinaryTagFromFile = (void *) GetProcAddress(hdll, "SdbWriteBinaryTagFromFile");
     pSdbGetBinaryTagData = (void *) GetProcAddress(hdll, "SdbGetBinaryTagData");
     pSdbWriteStringTag = (void *) GetProcAddress(hdll, "SdbWriteStringTag");
+    pSdbBeginWriteListTag = (void *)GetProcAddress(hdll, "SdbBeginWriteListTag");
+    pSdbEndWriteListTag = (void *) GetProcAddress(hdll, "SdbEndWriteListTag");
+    pSdbWriteStringRefTag = (void *) GetProcAddress(hdll, "SdbWriteStringRefTag");
 
     test_Sdb();
     test_SdbTagToString();

@@ -1190,7 +1190,7 @@ BOOL WINAPI SdbReadBinaryTag(PDB db, TAGID tagid, PBYTE buffer, DWORD size)
  */
 TAGID WINAPI SdbBeginWriteListTag(PDB db, TAG tag)
 {
-    if (!SdbCheckTagType(db, tag, TAG_TYPE_LIST))
+    if (!SdbCheckTagType(tag, TAG_TYPE_LIST))
         return TAGID_NULL;
 
     SdbWrite(db, &tag, 2);
@@ -1215,7 +1215,7 @@ BOOL WINAPI SdbEndWriteListTag(PDB db, TAGID tagid)
     if (!SdbCheckTagIDType(db, tagid, TAG_TYPE_LIST))
         return FALSE;
 
-    *(DWORD*)&db->data[tagid + 2] = write_iter - tagid - 2;
+    *(DWORD*)&db->data[tagid + 2] = db->write_iter - tagid - 2;
     return TRUE;
 }
 
@@ -1238,7 +1238,7 @@ BOOL WINAPI SdbEndWriteListTag(PDB db, TAGID tagid)
  */
 BOOL WINAPI SdbWriteStringRefTag(PDB db, TAG tag, TAGID tagid)
 {
-    if (!SdbCheckTagIDType(db, tagid, TAG_TYPE_LIST))
+    if (!SdbCheckTagType(tag, TAG_TYPE_STRINGREF))
         return FALSE;
 
     SdbWrite(db, &tag, 2);
