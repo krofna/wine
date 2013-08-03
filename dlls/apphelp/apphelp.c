@@ -1178,7 +1178,7 @@ BOOL WINAPI SdbReadBinaryTag(PDB db, TAGID tagid, PBYTE buffer, DWORD size)
  *
  * PARAMS
  *  db          [I] Handle to the shim database
- *  tag         [I] TAGID of binary data
+ *  tag         [I] TAG for the list
  *
  * RETURNS
  *  Success: TAGID of the newly created list
@@ -1195,4 +1195,53 @@ TAGID WINAPI SdbBeginWriteListTag(PDB db, TAG tag)
 
     SdbWrite(db, &tag, 2);
     return db->write_iter - 2;
+}
+
+/**************************************************************************
+ *        SdbEndWriteListTag                [APPHELP.@]
+ *
+ * Marks end of the specified list
+ *
+ * PARAMS
+ *  db          [I] Handle to the shim database
+ *  tagid       [I] TAGID of the list
+ *
+ * RETURNS
+ *  TRUE if end of list was successfully marked
+ *  FALSE otherwise
+ */
+BOOL WINAPI SdbEndWriteListTag(PDB db, TAGID tagid)
+{
+    if (!SdbCheckTagIDType(db, tagid, TAG_TYPE_LIST))
+        return FALSE;
+
+    *(DWORD*)&db->data[tagid + 2] = write_iter - tagid - 2;
+    return TRUE;
+}
+
+/**************************************************************************
+ *        SdbWriteStringRefTag                [APPHELP.@]
+ *
+ * Writes a stringref tag to specified database
+ *
+ * PARAMS
+ *  db          [I] Handle to the shim database
+ *  tag         [I] TAG which will be written
+ *  tagid       [I] TAGID of the string tag refers to
+ *
+ * RETURNS
+ *  TRUE if tag was successfully written
+ *  FALSE otherwise
+ *
+ * NOTES
+ *  Reference (tagid) is not checked for validity.
+ */
+BOOL WINAPI SdbWriteStringRefTag(PDB db, TAG tag, TAGID tagid)
+{
+    if (!SdbCheckTagIDType(db, tagid, TAG_TYPE_LIST))
+        return FALSE;
+
+    SdbWrite(db, &tag, 2);
+    SdbWrite(db, &tagid, 4);
+    return TRUE;
 }

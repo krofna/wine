@@ -33,6 +33,7 @@
 @ stub SdbDeclareIndex
 @ stub SdbDumpSearchPathPartCaches
 @ stub SdbEnumMsiTransforms
+@ stdcall SdbEndWriteListTag(ptr long)
 @ stub SdbEscapeApphelpURL
 @ stub SdbFindFirstDWORDIndexedTag
 @ stub SdbFindFirstMsiPackage
@@ -148,7 +149,7 @@
 @ stdcall SdbWriteDWORDTag(ptr long long)
 @ stdcall SdbWriteNULLTag(ptr long)
 @ stdcall SdbWriteQWORDTag(ptr long int64)
-@ stub SdbWriteStringRefTag
+@ stdcall SdbWriteStringRefTag(ptr long long)
 @ stdcall SdbWriteStringTag(ptr long wstr)
 @ stub SdbWriteStringTagDirect
 @ stdcall SdbWriteWORDTag(ptr long long)
