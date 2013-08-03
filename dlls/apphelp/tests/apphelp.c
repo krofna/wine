@@ -168,8 +168,7 @@ static void test_Sdb(void)
     BOOL ret;
     HANDLE file; /* temp file created for testing purpose */
     TAG tag;
-    DWORD path_size = 5 * sizeof(WCHAR); /* size of path variable */
-    TAGID tagid, stringref = 6, stringtable = path_size + 6;
+    TAGID tagid, stringref = 6;
     LPCWSTR string;
     PBYTE binary;
 
@@ -181,17 +180,13 @@ static void test_Sdb(void)
     ok (ret, "failed to write QWORD tag\n");
     ret = pSdbWriteStringRefTag(db, tags[2], stringref);
     ok (ret, "failed to write stringref tag\n");
+    tagid = pSdbBeginWriteListTag(db, tags[3]);
+    ok (tagid != TAGID_NULL, "unexpected NULL tagid\n");
+    ret = pSdbWriteStringTag(db, tags[4], path);
+    ok (ret, "failed to write string tag\n");
+    ret = pSdbEndWriteListTag(db, tagid);
+    ok (ret, "failed to update list size\n");
     pSdbCloseDatabaseWrite(db);
-
-    file = CreateFileW(path, GENERIC_WRITE, 0, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-    ok (file != INVALID_HANDLE_VALUE, "failed to open file\n");
-    SetFilePointer(file, 34, 0, FILE_BEGIN);
-    Write(file, &tags[3], 2);
-    Write(file, &stringtable, 4);
-    Write(file, &tags[4], 2);
-    Write(file, &path_size, 4);
-    Write(file, path, path_size);
-    CloseHandle(file);
 
     db = pSdbOpenDatabase(path, DOS_PATH);
     ok(db != NULL, "unexpected NULL handle\n");

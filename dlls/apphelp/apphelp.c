@@ -1190,11 +1190,15 @@ BOOL WINAPI SdbReadBinaryTag(PDB db, TAGID tagid, PBYTE buffer, DWORD size)
  */
 TAGID WINAPI SdbBeginWriteListTag(PDB db, TAG tag)
 {
+    TAGID list_id;
+
     if (!SdbCheckTagType(tag, TAG_TYPE_LIST))
         return TAGID_NULL;
 
+    list_id = db->write_iter;
     SdbWrite(db, &tag, 2);
-    return db->write_iter - 2;
+    db->write_iter += 4; /* reserve some memory for storing list size */
+    return list_id;
 }
 
 /**************************************************************************
