@@ -34,7 +34,7 @@ typedef struct tagATTRINFO {
   union {
     QWORD dwattr;
     DWORD qwattr;
-    WCHAR *lpattr; // ??? TCHAR ???
+    WCHAR *lpattr;
   };
 } ATTRINFO, *PATTRINFO;
 

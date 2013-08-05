@@ -1,4 +1,5 @@
 MODULE = apphelp.dll
+IMPORTS = version imagehlp
 
 C_SRCS = apphelp.c
 

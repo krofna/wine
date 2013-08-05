@@ -21,9 +21,12 @@
 #include "windef.h"
 #include "winbase.h"
 #include "apphelp.h"
+#include "winver.h"
+#include "imagehlp.h"
 #include "winternl.h"
 
 #include "wine/debug.h"
+#include "wine/unicode.h"
 
 #define STATUS_SUCCESS ((NTSTATUS)0)
 
@@ -90,7 +93,7 @@ static void WINAPI SdbWrite(PDB db, LPCVOID data, DWORD size)
     {
         /* Round to powers of two to prevent too many reallocations */
         while (db->size < db->write_iter + size) db->size <<= 1;
-        HeapReAlloc(GetProcessHeap(), 0, db->data, db->size);
+        db->data = HeapReAlloc(GetProcessHeap(), 0, db->data, db->size);
     }
 
     memcpy(db->data + db->write_iter, data, size);
@@ -1132,7 +1135,7 @@ static PVOID WINAPI SdbOpenMemMappedFile(LPCWSTR path, PHANDLE file, PHANDLE map
     *mapping = CreateFileMappingW(*file, NULL, PAGE_READONLY, 0, 0, NULL);
     if (*mapping == INVALID_HANDLE_VALUE)
     {
-        TRACE("Failed to create mapping for file");
+        TRACE("Failed to create mapping for file\n");
         return NULL;
     }
 
@@ -1140,7 +1143,7 @@ static PVOID WINAPI SdbOpenMemMappedFile(LPCWSTR path, PHANDLE file, PHANDLE map
     view = MapViewOfFile(*mapping, FILE_MAP_READ, 0, 0, *size);
     if (!view)
     {
-        TRACE("Failed to map view of file");
+        TRACE("Failed to map view of file\n");
         return NULL;
     }
 
@@ -1207,10 +1210,184 @@ BOOL WINAPI SdbWriteBinaryTagFromFile(PDB db, TAG tag, LPCWSTR path)
     return TRUE;
 }
 
+static void WINAPI SdbSetDWORDAttr(PATTRINFO attr, TAG tag, DWORD value)
+{
+    attr->type = tag;
+    attr->flags = ATTRIBUTE_AVAILABLE;
+    attr->dwattr = value;
+}
+
+static void WINAPI SdbSetStringAttr(PATTRINFO attr, TAG tag, WCHAR *string)
+{
+    if (!string)
+    {
+        attr->flags = ATTRIBUTE_FAILED;
+        return;
+    }
+
+    attr->type = tag;
+    attr->flags = ATTRIBUTE_AVAILABLE;
+    attr->lpattr = string;
+}
+
+static void WINAPI SdbSetAttrFail(PATTRINFO attr)
+{
+    attr->flags = ATTRIBUTE_FAILED;
+}
+
+static WCHAR* WINAPI SdbGetStringAttr(LPWSTR translation, LPCWSTR attr, PVOID file_info)
+{
+    DWORD size = 0;
+    PVOID buffer;
+    WCHAR value[128] = {0};
+
+    if (!file_info)
+        return NULL;
+
+    snprintfW(value, 128, translation, attr);
+    if (VerQueryValueW(file_info, value, &buffer, &size) && size != 0)
+        return (WCHAR*)buffer;
+
+    return NULL;
+}
+
+/**************************************************************************
+ *        SdbFreeFileAttributes                [APPHELP.@]
+ *
+ * Frees attribute data allocated by SdbGetFileAttributes
+ *
+ * PARAMS
+ *  attr_info  [I] Pointer to array of ATTRINFO which will be deallocated
+ *
+ * RETURNS
+ *  This function always returns TRUE
+ */
+BOOL WINAPI SdbFreeFileAttributes(PATTRINFO *attr_info)
+{
+    WORD i;
+    for (i = 0; i < 28; i++)
+        if ((attr_info[i]->type & TAG_TYPE_MASK) == TAG_TYPE_STRINGREF)
+            HeapFree(GetProcessHeap(), 0, attr_info[i]->lpattr);
+    HeapFree(GetProcessHeap(), 0, attr_info);
+    return TRUE;
+}
+
+/**************************************************************************
+ *        SdbGetFileAttributes                [APPHELP.@]
+ *
+ * Retrieves attribute data shim database requires to match a file with
+ * database entry
+ *
+ * PARAMS
+ *  path       [I] Path to the file
+ *  attr_info  [O] Pointer to array of ATTRINFO. Contains attribute data
+ *  attr_count [O] Number of attributes in attr_info
+ *
+ * RETURNS
+ *  TRUE attribute data was successfully retrieved
+ *  FALSE otherwise
+ *
+ * NOTES
+ *  You must free the attr_info allocated by this function by calling
+ *  SdbFreeFileAttributes
+ */
 BOOL WINAPI SdbGetFileAttributes(LPCWSTR path, PATTRINFO *attr_info, LPDWORD attr_count)
 {
-    FIXME("stub: %s %p %p\n", debugstr_w(path), attr_info, attr_count);
-    return FALSE;
+    static const WCHAR str_tinfo[] = {'\\','V','a','r','F','i','l','e','I','n','f','o','\\','T','r','a','n','s','l','a','t','i','o','n',0};
+    static const WCHAR str_trans[] = {'\\','S','t','r','i','n','g','F','i','l','e','I','n','f','o','\\','%','0','4','x','%','0','4','x','\\','%','%','s',0};
+    static const WCHAR str_CompanyName[] = {'C','o','m','p','a','n','y','N','a','m','e',0};
+    static const WCHAR str_FileDescription[] = {'F','i','l','e','D','e','s','c','r','i','p','t','i','o','n',0};
+    static const WCHAR str_FileVersion[] = {'F','i','l','e','V','e','r','s','i','o','n',0};
+    static const WCHAR str_InternalName[] = {'I','n','t','e','r','n','a','l','N','a','m','e',0};
+    static const WCHAR str_LegalCopyright[] = {'L','e','g','a','l','C','o','p','y','r','i','g','h','t',0};
+    static const WCHAR str_OriginalFilename[] = {'O','r','i','g','i','n','a','l','F','i','l','e','n','a','m','e',0};
+    static const WCHAR str_ProductName[] = {'P','r','o','d','u','c','t','N','a','m','e',0};
+    static const WCHAR str_ProductVersion[] = {'P','r','o','d','u','c','t','V','e','r','s','i','o','n',0};
+
+    PIMAGE_NT_HEADERS headers;
+    HANDLE file;
+    HANDLE mapping;
+    PVOID view, file_info = 0;
+    DWORD file_size, info_size, page_size;
+    DWORD headersum, checksum;
+    WCHAR translation[128] = {0};
+
+    struct LANGANDCODEPAGE {
+        WORD language;
+        WORD code_page;
+    } *lang_page;
+
+    TRACE("%s %p %p\n", debugstr_w(path), attr_info, attr_count);
+
+    view = SdbOpenMemMappedFile(path, &file, &mapping, &file_size);
+    if (!view)
+    {
+        TRACE("failed to open file\n");
+        return FALSE;
+    }
+
+    file_size = GetFileSize(file, NULL);
+    headers = CheckSumMappedFile(view, file_size, &headersum, &checksum);
+    if (!headers)
+    {
+        TRACE("failed to get file header size\n");
+        return FALSE;
+    }
+
+    info_size = GetFileVersionInfoSizeW(path, NULL);
+    if (info_size != 0)
+    {
+        file_info = HeapAlloc(GetProcessHeap(), 0, info_size);
+        GetFileVersionInfoW(path, 0, info_size, file_info);
+        VerQueryValueW(file_info, str_tinfo, (LPVOID)&lang_page, &page_size);
+        snprintfW(translation, 128, str_trans, lang_page->language, lang_page->code_page);
+    }
+
+    *attr_info = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, 28 * sizeof(ATTRINFO));
+
+    SdbSetDWORDAttr(attr_info[0], TAG_SIZE, file_size);
+
+    SdbSetAttrFail(attr_info[1]); /* TAG_CHECKSUM */
+    SdbSetAttrFail(attr_info[2]); /* TAG_BIN_FILE_VERSION */
+    SdbSetAttrFail(attr_info[3]); /* TAG_BIN_PRODUCT_VERSION - same as above? */
+
+    SdbSetStringAttr(attr_info[4], TAG_PRODUCT_VERSION, SdbGetStringAttr(translation, str_ProductVersion, file_info));
+    SdbSetStringAttr(attr_info[5], TAG_FILE_DESCRIPTION, SdbGetStringAttr(translation, str_FileDescription, file_info));
+    SdbSetStringAttr(attr_info[6], TAG_COMPANY_NAME, SdbGetStringAttr(translation, str_CompanyName, file_info));
+    SdbSetStringAttr(attr_info[7], TAG_PRODUCT_NAME, SdbGetStringAttr(translation, str_ProductName, file_info));
+    SdbSetStringAttr(attr_info[8], TAG_FILE_VERSION, SdbGetStringAttr(translation, str_FileVersion, file_info));
+    SdbSetStringAttr(attr_info[9], TAG_ORIGINAL_FILENAME, SdbGetStringAttr(translation, str_OriginalFilename, file_info));
+    SdbSetStringAttr(attr_info[10], TAG_INTERNAL_NAME, SdbGetStringAttr(translation, str_InternalName, file_info));
+    SdbSetStringAttr(attr_info[11], TAG_LEGAL_COPYRIGHT, SdbGetStringAttr(translation, str_LegalCopyright, file_info));
+
+    SdbSetAttrFail(attr_info[12]); /* TAG_VERDATEHI - always 0? */
+    SdbSetAttrFail(attr_info[13]); /* TAG_VERDATELO - always 0? */
+
+    /* http://msdn.microsoft.com/en-us/library/windows/desktop/ms680339(v=vs.85).aspx */
+    SdbSetAttrFail(attr_info[14]); /* TAG_VERFILEOS - 0x000, 0x4, 0x40004, 0x40000, 0x10004, 0x10001*/
+    SdbSetAttrFail(attr_info[15]); /* TAG_VERFILETYPE 0x1(exe?), 0x2(dll?), 0x3(special dll?), 0x4(service?) */
+    SdbSetAttrFail(attr_info[16]); /* TAG_MODULE_TYPE (1: WIN16?) (3: WIN32?) (WIN64?), Win32VersionValue? */
+
+    SdbSetDWORDAttr(attr_info[17], TAG_PE_CHECKSUM, headers->OptionalHeader.CheckSum);
+
+    SdbSetAttrFail(attr_info[18]); /* TAG_LINKER_VERSION - doesn't seem to match NT header data : check */
+    SdbSetAttrFail(attr_info[19]); /* TAG_NULL, ATTRIBUTE_FAILED */
+    SdbSetAttrFail(attr_info[20]); /* TAG_NULL, ATTRIBUTE_FAILED */
+    SdbSetAttrFail(attr_info[21]); /* TAG_UPTO_BIN_FILE_VERSION */
+    SdbSetAttrFail(attr_info[22]); /* TAG_UPTO_BIN_PRODUCT_VERSION: same as above? */
+
+    SdbSetDWORDAttr(attr_info[23], TAG_LINK_DATE, headers->FileHeader.TimeDateStamp);
+    SdbSetDWORDAttr(attr_info[24], TAG_UPTO_LINK_DATE, headers->FileHeader.TimeDateStamp);
+
+    SdbSetAttrFail(attr_info[25]); /* TAG_EXPORT_NAME - often file name? */
+    /* http://msdn.microsoft.com/en-us/library/windows/desktop/dd318693(v=vs.85).aspx */
+    /* http://msdn.microsoft.com/en-us/library/windows/desktop/aa381019(v=vs.85).aspx */
+    SdbSetAttrFail(attr_info[26]); /* TAG_VER_LANGUAGE 0x0: neutral, 0x409: eng (US), Russisch (Rusland) 0x419, Svenska (Sverige) 0x41d, eng (AUS) 0x800, Svenska (Sverige) [0x41d]*/
+    SdbSetAttrFail(attr_info[27]); /* TAG_EXE_WRAPPER - boolean */
+
+    HeapFree(GetProcessHeap(), 0, file_info);
+    *attr_count = 28;
+    return TRUE;
 }
 
 /**************************************************************************
