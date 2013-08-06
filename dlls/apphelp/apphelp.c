@@ -1489,9 +1489,8 @@ BOOL WINAPI SdbWriteStringRefTag(PDB db, TAG tag, TAGID tagid)
 
 static BOOL WINAPI SdbFileExists(LPCWSTR path)
 {
-    DWORD attr = GetFileAttributes(path);
-    return (attr != INVALID_FILE_ATTRIBUTES &&
-            !(attr & FILE_ATTRIBUTE_DIRECTORY));
+    DWORD attr = GetFileAttributesW(path);
+    return (attr != INVALID_FILE_ATTRIBUTES && !(attr & FILE_ATTRIBUTE_DIRECTORY));
 }
 
 /**************************************************************************
@@ -1514,6 +1513,7 @@ static BOOL WINAPI SdbFileExists(LPCWSTR path)
 BOOL WINAPI SdbGetMatchingExe(HSDB db, LPCWSTR path, LPCWSTR module_name,
                               LPCWSTR env, DWORD flags, PSDBQUERYRESULT result)
 {
+    static const WCHAR fmt[] = {'%','s','%','s',0};
     BOOL ok;
     TAGID database, iter, attr;
     ATTRINFO attribs[28];
@@ -1523,13 +1523,13 @@ BOOL WINAPI SdbGetMatchingExe(HSDB db, LPCWSTR path, LPCWSTR module_name,
     WCHAR buffer[256];
 
     /* Extract file name */
-    file_name = StrChr(path, '\\') + (LPWSTR)1;
+    file_name = StrChrW(path, '\\') + (LPWSTR)1;
 
     /* Extract directory path */
-    memcpy(dir_path, path, size_t(file_name - path) * sizeof(WCHAR));
+    memcpy(dir_path, path, (size_t)(file_name - path) * sizeof(WCHAR));
 
     /* Get information about executable required to match it with database entry */
-    if (!SdbGetFileAttributes(path, &attr, &attr_count))
+    if (!SdbGetFileAttributes(path, &attribs, &attr_count))
         return FALSE;
 
     /* DATABASE is list TAG which contains all executables */
@@ -1555,7 +1555,7 @@ BOOL WINAPI SdbGetMatchingExe(HSDB db, LPCWSTR path, LPCWSTR module_name,
             for (attr = SdbFindFirstTag(db, attr, TAG_MATCHING_FILE);
                  attr != TAGID_NULL; attr = SdbFindNextTag(db, iter, attr))
             {
-                snprintfW(buffer, 256, "%s%s", dir_path, SdbGetStringTagPtr(db, attr));
+                snprintfW(buffer, 256, fmt, dir_path, SdbGetStringTagPtr(db, attr));
                 if (!SdbFileExists(buffer))
                     ok = FALSE;
             }
