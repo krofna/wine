@@ -24,6 +24,7 @@
 #include "winver.h"
 #include "imagehlp.h"
 #include "winternl.h"
+#include "shlwapi.h"
 
 #include "wine/debug.h"
 #include "wine/unicode.h"
@@ -1523,7 +1524,7 @@ BOOL WINAPI SdbGetMatchingExe(HSDB db, LPCWSTR path, LPCWSTR module_name,
     WCHAR buffer[256];
 
     /* Extract file name */
-    file_name = StrChrW(path, '\\') + (LPWSTR)1;
+    file_name = StrChrW(path, '\\') + 1;
 
     /* Extract directory path */
     memcpy(dir_path, path, (size_t)(file_name - path) * sizeof(WCHAR));
@@ -1603,7 +1604,7 @@ void WINAPI SdbGetAppPatchDir(HSDB db, LPWSTR path, DWORD size)
     {
         string_size = (lstrlenW(default_dir) + 1) * sizeof(WCHAR);
         if (size >= string_size)
-            memcpy(path, default_dir, string_size);
+            StrCpyW(path, default_dir);
     }
     else
     {
@@ -1628,6 +1629,14 @@ void WINAPI SdbGetAppPatchDir(HSDB db, LPWSTR path, DWORD size)
  */
 HMODULE WINAPI SdbOpenApphelpResourceFile(LPCWSTR resource_file)
 {
-    static const WCHAR default_dll[] = {'A','c','R','e','s','.','d','l','l',0};
-    return (HMODULE)LoadLibraryW(resource_file ? resource_file : default_dll);
+    static const WCHAR default_dll[] = {'\\','e','n','-','U','S','\\','A','c','R','e','s','.','d','l','l','.','m','u','i',0};
+    WCHAR buffer[128];
+
+    if (!resource_file)
+    {
+        SdbGetAppPatchDir(NULL, buffer, 128);
+        memcpy(buffer + lstrlenW(buffer), default_dll, (lstrlenW(default_dll) + 1) * sizeof(WCHAR));
+    }
+
+    return (HMODULE)LoadLibraryW(resource_file ? resource_file : buffer);
 }
