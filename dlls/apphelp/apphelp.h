@@ -18,7 +18,11 @@
 
 typedef WORD TAG;
 typedef DWORD TAGID;
+typedef DWORD TAGREF;
 typedef UINT64 QWORD;
+
+#define TAGREF_NULL (0)
+#define TAGREF_ROOT (0)
 
 typedef struct _DB {
     HANDLE file;
@@ -26,7 +30,7 @@ typedef struct _DB {
     PBYTE data;
     TAGID stringtable;
     DWORD write_iter;
-} DB, *PDB;
+} DB, *PDB, *HSDB;
 
 typedef struct tagATTRINFO {
   TAG   type;
@@ -37,6 +41,24 @@ typedef struct tagATTRINFO {
     WCHAR *lpattr;
   };
 } ATTRINFO, *PATTRINFO;
+
+#define SDB_MAX_SDBS 16
+#define SDB_MAX_EXES 16
+#define SDB_MAX_LAYERS 8
+
+typedef struct tagSDBQUERYRESULT {
+  TAGREF atrExes[SDB_MAX_EXES];
+  DWORD  adwExeFlags[SDB_MAX_EXES];
+  TAGREF atrLayers[SDB_MAX_LAYERS];
+  DWORD  dwLayerFlags;
+  TAGREF trApphelp;
+  DWORD  dwExeCount;
+  DWORD  dwLayerCount;
+  GUID   guidID;
+  DWORD  dwFlags;
+  DWORD  dwCustomSDBMap;
+  GUID   rgGuidDB[SDB_MAX_SDBS];
+} SDBQUERYRESULT, *PSDBQUERYRESULT;
 
 typedef enum _PATH_TYPE {
     DOS_PATH,

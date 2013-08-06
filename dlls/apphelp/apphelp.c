@@ -59,12 +59,6 @@ BOOL WINAPI ApphelpCheckMsiPackage( void* ptr, LPCWSTR path )
     return TRUE;
 }
 
-HMODULE WINAPI SdbOpenApphelpResourceFile(LPCWSTR path)
-{
-    FIXME("stub: %s\n", debugstr_w(path));
-    return NULL;
-}
-
 static void WINAPI SdbFlush(PDB db)
 {
     WriteFile(db->file, db->data, db->write_iter, NULL, NULL);
@@ -1491,4 +1485,149 @@ BOOL WINAPI SdbWriteStringRefTag(PDB db, TAG tag, TAGID tagid)
     SdbWrite(db, &tag, 2);
     SdbWrite(db, &tagid, 4);
     return TRUE;
+}
+
+static BOOL WINAPI SdbFileExists(LPCWSTR path)
+{
+    DWORD attr = GetFileAttributes(path);
+    return (attr != INVALID_FILE_ATTRIBUTES &&
+            !(attr & FILE_ATTRIBUTE_DIRECTORY));
+}
+
+/**************************************************************************
+ *        SdbGetMatchingExe                [APPHELP.@]
+ *
+ * Queries database for a specified exe
+ *
+ * PARAMS
+ *  hsdb        [I] Handle to the shim database
+ *  path        [I] Path to executable for which we query database
+ *  module_name [I] Unused
+ *  env         [I] Unused
+ *  flags       [I] Unused
+ *  result      [O] Pointer to structure in which query result shall be stored
+ *
+ * RETURNS
+ *  TRUE if function succeeded
+ *  FALSE otherwise
+ */
+BOOL WINAPI SdbGetMatchingExe(HSDB db, LPCWSTR path, LPCWSTR module_name,
+                              LPCWSTR env, DWORD flags, PSDBQUERYRESULT result)
+{
+    BOOL ok;
+    TAGID database, iter, attr;
+    ATTRINFO attribs[28];
+    DWORD attr_count;
+    LPWSTR file_name;
+    LPWSTR dir_path;
+    WCHAR buffer[256];
+
+    /* Extract file name */
+    file_name = StrChr(path, '\\') + (LPWSTR)1;
+
+    /* Extract directory path */
+    memcpy(dir_path, path, size_t(file_name - path) * sizeof(WCHAR));
+
+    /* Get information about executable required to match it with database entry */
+    if (!SdbGetFileAttributes(path, &attr, &attr_count))
+        return FALSE;
+
+    /* DATABASE is list TAG which contains all executables */
+    database = SdbFindFirstTag(db, TAGID_ROOT, TAG_DATABASE);
+    if (database == TAGID_NULL)
+        return FALSE;
+
+    /* EXE is list TAG which contains data required to match executable */
+    iter = SdbFindFirstTag(db, database, TAG_EXE);
+
+    /* Search for entry in database */
+    while (iter != TAGID_NULL)
+    {
+        /* Check if exe name matches */
+        attr = SdbFindFirstTag(db, iter, TAG_NAME);
+        if (lstrcmpW(SdbGetStringTagPtr(db, attr), file_name) == 0)
+        {
+            /* Assume that entry is found (in case there are no "matching files") */
+            ok = TRUE;
+
+            /* Check if all "matching files" exist */
+            /* TODO: check size/checksum as well */
+            for (attr = SdbFindFirstTag(db, attr, TAG_MATCHING_FILE);
+                 attr != TAGID_NULL; attr = SdbFindNextTag(db, iter, attr))
+            {
+                snprintfW(buffer, 256, "%s%s", dir_path, SdbGetStringTagPtr(db, attr));
+                if (!SdbFileExists(buffer))
+                    ok = FALSE;
+            }
+
+            /* Found it! */
+            if (ok)
+            {
+                /* TODO: fill result data */
+                /* TODO: there may be multiple matches */
+                return TRUE;
+            }
+        }
+
+        /* Continue iterating */
+        iter = SdbFindNextTag(db, database, TAG_EXE);
+    }
+
+    /* Exe not found */
+    return FALSE;
+}
+
+/**************************************************************************
+ *        SdbGetAppPatchDir                [APPHELP.@]
+ *
+ * Retrieves AppPatch directory
+ *
+ * PARAMS
+ *  db      [I] Handle to the shim database
+ *  path    [O] Pointer to memory in which path shall be written
+ *  size    [I] Size of the buffer in characters
+ *
+ * RETURNS
+ *  This function does not return a value
+ */
+void WINAPI SdbGetAppPatchDir(HSDB db, LPWSTR path, DWORD size)
+{
+    static const WCHAR default_dir[] = {'C',':','\\','w','i','n','d','o','w','s','\\','A','p','p','P','a','t','c','h',0};
+    DWORD string_size;
+
+    /* In case function fails, path holds empty string */
+    if (size > 0)
+        *path = 0;
+
+    if (!db)
+    {
+        string_size = (lstrlenW(default_dir) + 1) * sizeof(WCHAR);
+        if (size >= string_size)
+            memcpy(path, default_dir, string_size);
+    }
+    else
+    {
+        /* fixme */
+    }
+}
+
+/**************************************************************************
+ *        SdbOpenApphelpResourceFile                [APPHELP.@]
+ *
+ * Loads Apphelp resource dll
+ *
+ * PARAMS
+ *  resource_file   [I] Path to the resource file
+ *
+ * RETURNS
+ *  Success: Handle to the resource dll
+ *  Failure: NULL
+ *
+ * NOTES
+ *  If resource_file is NULL, default resource dll shall be loaded
+ */
+HMODULE WINAPI SdbOpenApphelpResourceFile(LPCWSTR resource_file)
+{
+    static const WCHAR default_dll[] = {'A','c','R','e','s','.','d','l','l',0};
+    return (HMODULE)LoadLibraryW(resource_file ? resource_file : default_dll);
 }

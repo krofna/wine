@@ -52,7 +52,7 @@
 @ stub SdbFreeFileInfo
 @ stub SdbFreeFlagInfo
 @ stub SdbGetAppCompatDataSize
-@ stub SdbGetAppPatchDir
+@ stdcall SdbGetAppPatchDir(ptr wstr long)
 @ stdcall SdbGetBinaryTagData(ptr long)
 @ stub SdbGetDatabaseID
 @ stub SdbGetDatabaseInformation
@@ -71,7 +71,7 @@
 @ stub SdbGetLayerName
 @ stub SdbGetLayerTagRef
 @ stub SdbGetLocalPDB
-@ stub SdbGetMatchingExe
+@ stdcall SdbGetMatchingExe(ptr wstr wstr wstr long ptr)
 @ stub SdbGetMsiPackageInformation
 @ stub SdbGetNamedLayer
 @ stdcall SdbGetNextChild(ptr long long)

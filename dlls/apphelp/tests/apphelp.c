@@ -27,7 +27,7 @@
 #include <urlmon.h>
 #include <appcompatapi.h>
 #include <winbase.h>
-#include "../apphelp.h"
+#include "../apphelp.h" /* TODO: include with relative path is not allowed?? */
 
 #include "wine/test.h"
 
