@@ -1640,3 +1640,28 @@ HMODULE WINAPI SdbOpenApphelpResourceFile(LPCWSTR resource_file)
 
     return (HMODULE)LoadLibraryW(resource_file ? resource_file : buffer);
 }
+
+/**************************************************************************
+ *        SdbLoadString                [APPHELP.@]
+ *
+ * Loads string from Apphelp resource dll
+ *
+ * PARAMS
+ *  dll     [I] Handle to the resource dll
+ *  id      [I] Identifier of the string
+ *  buffer  [O] Buffer in which string shall be written
+ *  size    [I] Size of the buffer
+ *
+ * RETURNS
+ *  Success: Number of bytes copied
+ *  Failure: 0
+ *
+ * NOTES
+ *  If size is less than string size, only size characters shall be copied.
+ *  If size is 0, buffer shall receive pointer to string and function shall
+ *  return size of the string.
+ */
+DWORD WINAPI SdbLoadString(HMODULE dll, DWORD id, LPWSTR buffer, DWORD size)
+{
+    return LoadStringW(dll, id, buffer, size);
+}
