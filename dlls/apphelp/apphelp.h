@@ -30,7 +30,9 @@ typedef struct _DB {
     PBYTE data;
     TAGID stringtable;
     DWORD write_iter;
-} DB, *PDB, *HSDB;
+} DB, *PDB;
+
+typedef HANDLE HSDB;
 
 typedef struct tagATTRINFO {
   TAG   type;
