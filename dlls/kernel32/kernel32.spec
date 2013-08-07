@@ -161,7 +161,7 @@
 @ stub BaseCleanupAppcompatCache 
 @ stub BaseCleanupAppcompatCacheSupport
 @ stub BaseDumpAppcompatCache
-@ stub BaseFlushAppcompatCache
+@ stdcall BaseFlushAppcompatCache()
 @ stub BaseInitAppcompatCache
 @ stub BaseInitAppcompatCacheSupport
 @ stub BaseProcessInitPostImport
