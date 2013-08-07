@@ -1511,7 +1511,7 @@ static BOOL WINAPI SdbFileExists(LPCWSTR path)
  *  TRUE if function succeeded
  *  FALSE otherwise
  */
-BOOL WINAPI SdbGetMatchingExe(HSDB db, LPCWSTR path, LPCWSTR module_name,
+BOOL WINAPI SdbGetMatchingExe(HSDB hsdb, LPCWSTR path, LPCWSTR module_name,
                               LPCWSTR env, DWORD flags, PSDBQUERYRESULT result)
 {
     static const WCHAR fmt[] = {'%','s','%','s',0};
@@ -1522,6 +1522,9 @@ BOOL WINAPI SdbGetMatchingExe(HSDB db, LPCWSTR path, LPCWSTR module_name,
     LPWSTR file_name;
     LPWSTR dir_path;
     WCHAR buffer[256];
+    PDB db;
+
+    db = hsdb->db;
 
     /* Extract file name */
     file_name = StrChrW(path, '\\') + 1;
@@ -1664,4 +1667,63 @@ HMODULE WINAPI SdbOpenApphelpResourceFile(LPCWSTR resource_file)
 DWORD WINAPI SdbLoadString(HMODULE dll, DWORD id, LPWSTR buffer, DWORD size)
 {
     return LoadStringW(dll, id, buffer, size);
+}
+
+/**************************************************************************
+ *        SdbInitDatabase                [APPHELP.@]
+ *
+ * Opens specified shim database file
+ *
+ * PARAMS
+ *  flags   [I] Specifies type of path or predefined database
+ *  path    [I] Path to the shim database file
+ *
+ * RETURNS
+ *  Success: Handle to the opened shim database
+ *  Failure: NULL
+ *
+ * NOTES
+ *  Handle returned by this function may only be used by functions which
+ *  take HSDB param thus differing it from SdbOpenDatabase.
+ */
+HSDB WINAPI SdbInitDatabase(DWORD flags, LPCWSTR path)
+{
+    static const WCHAR shim[] = {'s','y','s','m','a','i','n','.','s','d','b',0};
+    static const WCHAR msi[] = {'m','s','i','m','a','i','n','.','s','d','b',0};
+    static const WCHAR drivers[] = {0}; /* this one makes no sense in wine */
+    LPCWSTR name;
+    WCHAR buffer[128];
+    HSDB sdb;
+
+    sdb = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(SDB));
+
+    /* Check for predefined databases */
+    if (((flags & HID_DATABASE_TYPE_MASK) == HID_DATABASE_TYPE_MASK) && path == NULL)
+    {
+        switch (flags & HID_DATABASE_TYPE_MASK)
+        {
+            case SDB_DATABASE_MAIN_SHIM: name = shim; break;
+            case SDB_DATABASE_MAIN_MSI: name = msi; break;
+            case SDB_DATABASE_MAIN_DRIVERS: name = drivers; break;
+        }
+        SdbGetAppPatchDir(NULL, buffer, 128);
+        memcpy(buffer + lstrlenW(buffer), name, (lstrlenW(name) + 1) * sizeof(WCHAR));
+    }
+
+    sdb->db = SdbOpenDatabase(path ? path : buffer, flags & 0xF);
+    return sdb;
+}
+
+/**************************************************************************
+ *        SdbReleaseDatabase                [APPHELP.@]
+ *
+ * Closes shim database opened by SdbInitDatabase
+ *
+ * PARAMS
+ *  hsdb   [I] Handle to the shim database
+ */
+void WINAPI SdbReleaseDatabase(HSDB hsdb)
+{
+    SdbCloseDatabase(hsdb->db);
+    HeapFree(GetProcessHeap(), 0, hsdb);
 }

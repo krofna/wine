@@ -32,7 +32,18 @@ typedef struct _DB {
     DWORD write_iter;
 } DB, *PDB;
 
-typedef HANDLE HSDB;
+/* Flags for SdbInitDatabase */
+#define HID_DOS_PATHS 0x1
+#define HID_DATABASE_FULLPATH 0x2
+#define HID_NO_DATABASE 0x4
+#define HID_DATABASE_TYPE_MASK 0xF00F0000
+#define SDB_DATABASE_MAIN_SHIM 0x80030000
+#define SDB_DATABASE_MAIN_MSI 0x80020000
+#define SDB_DATABASE_MAIN_DRIVERS 0x80040000
+
+typedef struct _SDB {
+    PDB db;
+} SDB, *HSDB;
 
 typedef struct tagATTRINFO {
   TAG   type;

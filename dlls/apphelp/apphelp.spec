@@ -86,7 +86,7 @@
 @ stub SdbGrabMatchingInfoEx
 @ stub SdbGUIDFromString
 @ stub SdbGUIDToString
-@ stub SdbInitDatabase
+@ stdcall SdbInitDatabase(long wstr)
 @ stub SdbInitDatabaseEx
 @ stub SdbIsNullGUID
 @ stub SdbIsStandardDatabase
@@ -127,7 +127,7 @@
 @ stub SdbReadStringTagRef
 @ stub SdbReadWORDTagRef
 @ stub SdbRegisterDatabase
-@ stub SdbReleaseDatabase
+@ stdcall SdbReleaseDatabase(ptr)
 @ stub SdbReleaseMatchingExe
 @ stub SdbResolveDatabase
 @ stub SdbSetApphelpDebugParameters
