@@ -197,11 +197,11 @@ BOOL WINAPI ApphelpCheckShellObject( REFCLSID clsid, BOOL shim, ULONGLONG *flags
  */
 void WINAPI SdbCloseDatabase(PDB db)
 {
-    if (db)
-    {
-        NtClose(db->file);
-        HeapFree(GetProcessHeap(), 0, db->data);
-    }
+    if (!db)
+        return;
+
+    NtClose(db->file);
+    HeapFree(GetProcessHeap(), 0, db->data);
     HeapFree(GetProcessHeap(), 0, db);
 }
 
