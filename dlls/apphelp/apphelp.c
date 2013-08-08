@@ -60,6 +60,16 @@ BOOL WINAPI ApphelpCheckMsiPackage( void* ptr, LPCWSTR path )
     return TRUE;
 }
 
+static DWORD SdbStrlen(LPCWSTR string)
+{
+    return (lstrlenW(string) + 1) * sizeof(WCHAR);
+}
+
+static void* SdbAlloc(DWORD size)
+{
+    return HeapAlloc(GetProcessHeap(), 0, size);
+}
+
 static void WINAPI SdbFlush(PDB db)
 {
     WriteFile(db->file, db->data, db->write_iter, NULL, NULL);
@@ -95,7 +105,7 @@ static void WINAPI SdbWrite(PDB db, LPCVOID data, DWORD size)
     db->write_iter += size;
 }
 
-static PDB WINAPI SdbAlloc(void);
+static PDB WINAPI SdbCreate(void);
 
 /**************************************************************************
  *        SdbCreateDatabase                [APPHELP.@]
@@ -126,7 +136,7 @@ PDB WINAPI SdbCreateDatabase(LPCWSTR path, PATH_TYPE type)
 
     TRACE("%s %u\n", debugstr_w(path), type);
 
-    db = SdbAlloc();
+    db = SdbCreate();
     if (!db)
     {
         TRACE("Failed to allocate memory for shim database\n");
@@ -157,7 +167,7 @@ PDB WINAPI SdbCreateDatabase(LPCWSTR path, PATH_TYPE type)
         return NULL;
     }
 
-    db->data = HeapAlloc(GetProcessHeap(), 0, 16);
+    db->data = SdbAlloc(16);
     db->size = 16;
 
     SdbWrite(db, &version_major, 4);
@@ -187,8 +197,11 @@ BOOL WINAPI ApphelpCheckShellObject( REFCLSID clsid, BOOL shim, ULONGLONG *flags
  */
 void WINAPI SdbCloseDatabase(PDB db)
 {
-    NtClose(db->file);
-    HeapFree(GetProcessHeap(), 0, db->data);
+    if (db)
+    {
+        NtClose(db->file);
+        HeapFree(GetProcessHeap(), 0, db->data);
+    }
     HeapFree(GetProcessHeap(), 0, db);
 }
 
@@ -695,7 +708,7 @@ TAGID WINAPI SdbFindFirstTag(PDB db, TAGID parent, TAG tag)
     return TAGID_NULL;
 }
 
-static PDB WINAPI SdbAlloc(void)
+static PDB WINAPI SdbCreate(void)
 {
     PDB db;
 
@@ -731,7 +744,7 @@ PDB WINAPI SdbOpenDatabase(LPCWSTR path, PATH_TYPE type)
 
     TRACE("%s, 0x%x\n", debugstr_w(path), type);
 
-    db = SdbAlloc();
+    db = SdbCreate();
     if (!db)
     {
         TRACE("Failed to allocate memory for shim database\n");
@@ -763,7 +776,7 @@ PDB WINAPI SdbOpenDatabase(LPCWSTR path, PATH_TYPE type)
     }
 
     db->size = GetFileSize(db->file, NULL);
-    db->data = HeapAlloc(GetProcessHeap(), 0, db->size);
+    db->data = SdbAlloc(db->size);
     ReadFile(db->file, db->data, db->size, NULL, NULL);
 
     if (!SdbReadData(db, &header, 0, 12))
@@ -1063,7 +1076,7 @@ BOOL WINAPI SdbWriteStringTag(PDB db, TAG tag, LPCWSTR string)
     if (!SdbCheckTagType(tag, TAG_TYPE_STRING))
         return FALSE;
 
-    size = (lstrlenW(string) + 1) * sizeof(WCHAR);
+    size = SdbStrlen(string);
     SdbWrite(db, &tag, 2);
     SdbWrite(db, &size, 4);
     SdbWrite(db, string, size);
@@ -1252,17 +1265,25 @@ static WCHAR* WINAPI SdbGetStringAttr(LPWSTR translation, LPCWSTR attr, PVOID fi
  * Frees attribute data allocated by SdbGetFileAttributes
  *
  * PARAMS
- *  attr_info  [I] Pointer to array of ATTRINFO which will be deallocated
+ *  attr_info  [I] Pointer to array of ATTRINFO which will be freed
  *
  * RETURNS
- *  This function always returns TRUE
+ *  TRUE if memory was successfully freed
+ *  FALSE otherwise
+ * 
+ * NOTES
+ *  Unlike Windows, this implementation will not crash if attr_info is NULL
  */
-BOOL WINAPI SdbFreeFileAttributes(PATTRINFO *attr_info)
+BOOL WINAPI SdbFreeFileAttributes(PATTRINFO attr_info)
 {
     WORD i;
+
+    if (!attr_info)
+        return FALSE;
+
     for (i = 0; i < 28; i++)
-        if ((attr_info[i]->type & TAG_TYPE_MASK) == TAG_TYPE_STRINGREF)
-            HeapFree(GetProcessHeap(), 0, attr_info[i]->lpattr);
+        if ((attr_info[i].type & TAG_TYPE_MASK) == TAG_TYPE_STRINGREF)
+            HeapFree(GetProcessHeap(), 0, attr_info[i].lpattr);
     HeapFree(GetProcessHeap(), 0, attr_info);
     return TRUE;
 }
@@ -1332,7 +1353,7 @@ BOOL WINAPI SdbGetFileAttributes(LPCWSTR path, PATTRINFO *attr_info, LPDWORD att
     info_size = GetFileVersionInfoSizeW(path, NULL);
     if (info_size != 0)
     {
-        file_info = HeapAlloc(GetProcessHeap(), 0, info_size);
+        file_info = SdbAlloc(info_size);
         GetFileVersionInfoW(path, 0, info_size, file_info);
         VerQueryValueW(file_info, str_tinfo, (LPVOID)&lang_page, &page_size);
         snprintfW(translation, 128, str_trans, lang_page->language, lang_page->code_page);
@@ -1381,7 +1402,7 @@ BOOL WINAPI SdbGetFileAttributes(LPCWSTR path, PATTRINFO *attr_info, LPDWORD att
     SdbSetAttrFail(attr_info[27]); /* TAG_EXE_WRAPPER - boolean */
 
     HeapFree(GetProcessHeap(), 0, file_info);
-    *attr_count = 28;
+    *attr_count = 28; /* As far as I know, this one is always 28 */
     return TRUE;
 }
 
@@ -1402,11 +1423,16 @@ BOOL WINAPI SdbGetFileAttributes(LPCWSTR path, PATTRINFO *attr_info, LPDWORD att
  */
 BOOL WINAPI SdbReadBinaryTag(PDB db, TAGID tagid, PBYTE buffer, DWORD size)
 {
+    DWORD data_size;
+
     if (!SdbCheckTagIDType(db, tagid, TAG_TYPE_BINARY))
         return FALSE;
 
-    /* TODO: Error checking */
-    return SdbReadData(db, buffer, tagid, size);
+    SdbReadData(db, &size, tagid + 2, 4);
+    if (size < data_size)
+        return FALSE;
+
+    return SdbReadData(db, buffer, tagid + 6, data_size);
 }
 
 /**************************************************************************
@@ -1510,19 +1536,36 @@ static BOOL WINAPI SdbFileExists(LPCWSTR path)
  * RETURNS
  *  TRUE if function succeeded
  *  FALSE otherwise
+ * 
+ * NOTES
+ *  If hsdb is NULL default database shall be loaded and searched.
  */
 BOOL WINAPI SdbGetMatchingExe(HSDB hsdb, LPCWSTR path, LPCWSTR module_name,
                               LPCWSTR env, DWORD flags, PSDBQUERYRESULT result)
 {
     static const WCHAR fmt[] = {'%','s','%','s',0};
-    BOOL ok;
+    BOOL ok, manage, ret;
     TAGID database, iter, attr;
-    ATTRINFO attribs[28];
+    PATTRINFO attribs;
     DWORD attr_count;
     LPWSTR file_name;
-    LPWSTR dir_path;
+    WCHAR dir_path[128];
     WCHAR buffer[256];
     PDB db;
+
+    /* Load default database if one is not specified */
+    if (!hsdb)
+    {
+        /* To reproduce windows behaviour HID_DOS_PATHS needs
+         * to be specified when loading default database */
+        hsdb = SdbInitDatabase(HID_DOS_PATHS | SDB_DATABASE_MAIN_SHIM, NULL);
+        manage = TRUE; /* Manage database object */
+    }
+    else manage = FALSE;
+
+    /* No database could be loaded */
+    if (!hsdb)
+        return FALSE;
 
     db = hsdb->db;
 
@@ -1549,7 +1592,7 @@ BOOL WINAPI SdbGetMatchingExe(HSDB hsdb, LPCWSTR path, LPCWSTR module_name,
     {
         /* Check if exe name matches */
         attr = SdbFindFirstTag(db, iter, TAG_NAME);
-        if (lstrcmpW(SdbGetStringTagPtr(db, attr), file_name) == 0)
+        if (lstrcmpiW(SdbGetStringTagPtr(db, attr), file_name) == 0)
         {
             /* Assume that entry is found (in case there are no "matching files") */
             ok = TRUE;
@@ -1569,7 +1612,8 @@ BOOL WINAPI SdbGetMatchingExe(HSDB hsdb, LPCWSTR path, LPCWSTR module_name,
             {
                 /* TODO: fill result data */
                 /* TODO: there may be multiple matches */
-                return TRUE;
+                ret = TRUE;
+                goto cleanup;
             }
         }
 
@@ -1578,7 +1622,12 @@ BOOL WINAPI SdbGetMatchingExe(HSDB hsdb, LPCWSTR path, LPCWSTR module_name,
     }
 
     /* Exe not found */
-    return FALSE;
+    ret = FALSE;
+
+cleanup:
+    SdbFreeFileAttributes(attribs);
+    if (manage) SdbReleaseDatabase(hsdb);
+    return ret;
 }
 
 /**************************************************************************
@@ -1605,7 +1654,7 @@ void WINAPI SdbGetAppPatchDir(HSDB db, LPWSTR path, DWORD size)
 
     if (!db)
     {
-        string_size = (lstrlenW(default_dir) + 1) * sizeof(WCHAR);
+        string_size = SdbStrlen(default_dir);
         if (size >= string_size)
             StrCpyW(path, default_dir);
     }
@@ -1638,7 +1687,7 @@ HMODULE WINAPI SdbOpenApphelpResourceFile(LPCWSTR resource_file)
     if (!resource_file)
     {
         SdbGetAppPatchDir(NULL, buffer, 128);
-        memcpy(buffer + lstrlenW(buffer), default_dll, (lstrlenW(default_dll) + 1) * sizeof(WCHAR));
+        memcpy(buffer + lstrlenW(buffer), default_dll, SdbStrlen(default_dll));
     }
 
     return (HMODULE)LoadLibraryW(resource_file ? resource_file : buffer);
@@ -1688,17 +1737,19 @@ DWORD WINAPI SdbLoadString(HMODULE dll, DWORD id, LPWSTR buffer, DWORD size)
  */
 HSDB WINAPI SdbInitDatabase(DWORD flags, LPCWSTR path)
 {
-    static const WCHAR shim[] = {'s','y','s','m','a','i','n','.','s','d','b',0};
-    static const WCHAR msi[] = {'m','s','i','m','a','i','n','.','s','d','b',0};
+    static const WCHAR shim[] = {'\\','s','y','s','m','a','i','n','.','s','d','b',0};
+    static const WCHAR msi[] = {'\\','m','s','i','m','a','i','n','.','s','d','b',0};
     static const WCHAR drivers[] = {0}; /* this one makes no sense in wine */
     LPCWSTR name;
     WCHAR buffer[128];
     HSDB sdb;
 
     sdb = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(SDB));
+    if (!sdb)
+        return NULL;
 
     /* Check for predefined databases */
-    if (((flags & HID_DATABASE_TYPE_MASK) == HID_DATABASE_TYPE_MASK) && path == NULL)
+    if ((flags & HID_DATABASE_TYPE_MASK) && path == NULL)
     {
         switch (flags & HID_DATABASE_TYPE_MASK)
         {
@@ -1707,10 +1758,18 @@ HSDB WINAPI SdbInitDatabase(DWORD flags, LPCWSTR path)
             case SDB_DATABASE_MAIN_DRIVERS: name = drivers; break;
         }
         SdbGetAppPatchDir(NULL, buffer, 128);
-        memcpy(buffer + lstrlenW(buffer), name, (lstrlenW(name) + 1) * sizeof(WCHAR));
+        memcpy(buffer + lstrlenW(buffer), name, SdbStrlen(name));
     }
 
-    sdb->db = SdbOpenDatabase(path ? path : buffer, flags & 0xF);
+    sdb->db = SdbOpenDatabase(path ? path : buffer, (flags & 0xF) - 1);
+
+    /* If database could not be loaded, a handle doesn't make sense either */
+    if (!sdb->db)
+    {
+        SdbReleaseDatabase(sdb);
+        return NULL;
+    }
+
     return sdb;
 }
 

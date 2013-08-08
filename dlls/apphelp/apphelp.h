@@ -79,6 +79,8 @@ typedef enum _PATH_TYPE {
 } PATH_TYPE;
 
 void WINAPI SdbCloseDatabase(PDB);
+void WINAPI SdbReleaseDatabase(HSDB);
+HSDB WINAPI SdbInitDatabase(DWORD, LPCWSTR);
 
 #define ATTRIBUTE_AVAILABLE 0x1
 #define ATTRIBUTE_FAILED 0x2
