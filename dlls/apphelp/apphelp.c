@@ -88,6 +88,7 @@ static void WINAPI SdbFlush(PDB db)
  */
 void WINAPI SdbCloseDatabaseWrite(PDB db)
 {
+    TRACE("%p\n", db);
     SdbFlush(db);
     SdbCloseDatabase(db);
 }
@@ -197,6 +198,7 @@ BOOL WINAPI ApphelpCheckShellObject( REFCLSID clsid, BOOL shim, ULONGLONG *flags
  */
 void WINAPI SdbCloseDatabase(PDB db)
 {
+    TRACE("%p\n", db);
     if (!db)
         return;
 
@@ -445,6 +447,8 @@ LPCWSTR WINAPI SdbTagToString(TAG tag)
     BOOL switch_table; /* should we use table2 and limits2? */
     WORD index, type_index;
 
+    TRACE("0x%x\n", tag);
+
     /* special case: null tag */
     if (tag == TAG_NULL)
         return null;
@@ -522,6 +526,8 @@ TAG WINAPI SdbGetTagFromTagID(PDB db, TAGID tagid)
 {
     TAG data;
 
+    TRACE("%p %u\n", db, tagid);
+
     /* A tag associated with tagid is first 2 bytes tagid bytes offset from beginning */
     if (!SdbReadData(db, &data, tagid, 2))
     {
@@ -547,6 +553,8 @@ TAG WINAPI SdbGetTagFromTagID(PDB db, TAGID tagid)
  */
 TAGID WINAPI SdbGetFirstChild(PDB db, TAGID parent)
 {
+    TRACE("%p %u\n", db, parent);
+
     /* if we are at beginning of database */
     if (parent == TAGID_ROOT)
     {
@@ -617,6 +625,8 @@ TAGID WINAPI SdbGetNextChild(PDB db, TAGID parent, TAGID prev_child)
     TAGID next_child;
     DWORD prev_child_size, parent_size;
 
+    TRACE("%p %u %u\n", db, parent, prev_child);
+
     prev_child_size = SdbGetTagSize(db, prev_child);
     if (prev_child_size == 0)
     {
@@ -667,8 +677,13 @@ TAGID WINAPI SdbGetNextChild(PDB db, TAGID parent, TAGID prev_child)
  */
 TAGID WINAPI SdbFindNextTag(PDB db, TAGID parent, TAGID prev_child)
 {
-    TAG tag = SdbGetTagFromTagID(db, prev_child);
-    TAGID iter = SdbGetNextChild(db, parent, prev_child);
+    TAG tag;
+    TAGID iter;
+
+    TRACE("%p %u %u\n", db, parent, prev_child);
+
+    tag = SdbGetTagFromTagID(db, prev_child);
+    iter = SdbGetNextChild(db, parent, prev_child);
 
     while (iter != TAGID_NULL)
     {
@@ -676,7 +691,6 @@ TAGID WINAPI SdbFindNextTag(PDB db, TAGID parent, TAGID prev_child)
             return iter;
         iter = SdbGetNextChild(db, parent, iter);
     }
-
     return TAGID_NULL;
 }
 
@@ -696,27 +710,25 @@ TAGID WINAPI SdbFindNextTag(PDB db, TAGID parent, TAGID prev_child)
  */
 TAGID WINAPI SdbFindFirstTag(PDB db, TAGID parent, TAG tag)
 {
-    TAGID iter = SdbGetFirstChild(db, parent);
+    TAGID iter;
 
+    TRACE("%p %u 0x%x\n", db, parent, tag);
+
+    iter = SdbGetFirstChild(db, parent);
     while (iter != TAGID_NULL)
     {
         if (SdbGetTagFromTagID(db, iter) == tag)
             return iter;
         iter = SdbGetNextChild(db, parent, iter);
     }
-
     return TAGID_NULL;
 }
 
 static PDB WINAPI SdbCreate(void)
 {
-    PDB db;
-
-    db = (PDB)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(DB));
-
+    PDB db = (PDB)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(DB));
     if (db)
         db->file = INVALID_HANDLE_VALUE;
-
     return db;
 }
 
@@ -872,6 +884,8 @@ BOOL WINAPI SdbReadStringTag(PDB db, TAGID tagid, LPWSTR buffer, DWORD size)
 {
     LPWSTR string;
     DWORD string_size;
+
+    TRACE("%p, %u, %p, %u\n", db, tagid, buffer, size);
 
     string = SdbGetString(db, tagid, &string_size);
     if (!string)
@@ -1204,6 +1218,8 @@ BOOL WINAPI SdbWriteBinaryTagFromFile(PDB db, TAG tag, LPCWSTR path)
     DWORD size;
     LPVOID view;
 
+    TRACE("%p 0x%x %s\n", db, tag, debugstr_w(path));
+
     if (!SdbCheckTagType(tag, TAG_TYPE_BINARY))
         return FALSE;
 
@@ -1359,7 +1375,7 @@ BOOL WINAPI SdbGetFileAttributes(LPCWSTR path, PATTRINFO *attr_info, LPDWORD att
         snprintfW(translation, 128, str_trans, lang_page->language, lang_page->code_page);
     }
 
-    *attr_info = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, 28 * sizeof(ATTRINFO));
+    (*attr_info) = (PATTRINFO)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, 28 * sizeof(ATTRINFO));
 
     SdbSetDWORDAttr(attr_info[0], TAG_SIZE, file_size);
 
@@ -1546,12 +1562,15 @@ BOOL WINAPI SdbGetMatchingExe(HSDB hsdb, LPCWSTR path, LPCWSTR module_name,
     static const WCHAR fmt[] = {'%','s','%','s',0};
     BOOL ok, manage, ret;
     TAGID database, iter, attr;
-    PATTRINFO attribs;
+    PATTRINFO attribs = NULL;
     DWORD attr_count;
     LPWSTR file_name;
     WCHAR dir_path[128];
     WCHAR buffer[256];
     PDB db;
+
+    TRACE("%p %s %s %s %u %p\n", hsdb, debugstr_w(path), debugstr_w(module_name),
+          debugstr_w(env), flags, result);
 
     /* Load default database if one is not specified */
     if (!hsdb)
@@ -1570,14 +1589,14 @@ BOOL WINAPI SdbGetMatchingExe(HSDB hsdb, LPCWSTR path, LPCWSTR module_name,
     db = hsdb->db;
 
     /* Extract file name */
-    file_name = StrChrW(path, '\\') + 1;
+    file_name = StrRChrW(path, NULL, '\\') + 1;
 
     /* Extract directory path */
     memcpy(dir_path, path, (size_t)(file_name - path) * sizeof(WCHAR));
 
     /* Get information about executable required to match it with database entry */
-    if (!SdbGetFileAttributes(path, &attribs, &attr_count))
-        return FALSE;
+    //if (!SdbGetFileAttributes(path, &attribs, &attr_count))
+        //return FALSE;
 
     /* DATABASE is list TAG which contains all executables */
     database = SdbFindFirstTag(db, TAGID_ROOT, TAG_DATABASE);
@@ -1618,7 +1637,7 @@ BOOL WINAPI SdbGetMatchingExe(HSDB hsdb, LPCWSTR path, LPCWSTR module_name,
         }
 
         /* Continue iterating */
-        iter = SdbFindNextTag(db, database, TAG_EXE);
+        iter = SdbFindNextTag(db, database, iter);
     }
 
     /* Exe not found */
@@ -1684,6 +1703,8 @@ HMODULE WINAPI SdbOpenApphelpResourceFile(LPCWSTR resource_file)
     static const WCHAR default_dll[] = {'\\','e','n','-','U','S','\\','A','c','R','e','s','.','d','l','l','.','m','u','i',0};
     WCHAR buffer[128];
 
+    TRACE("%s\n", debugstr_w(resource_file));
+
     if (!resource_file)
     {
         SdbGetAppPatchDir(NULL, buffer, 128);
@@ -1743,6 +1764,8 @@ HSDB WINAPI SdbInitDatabase(DWORD flags, LPCWSTR path)
     LPCWSTR name;
     WCHAR buffer[128];
     HSDB sdb;
+
+    TRACE("%u, %s\n", flags, debugstr_w(path));
 
     sdb = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(SDB));
     if (!sdb)
