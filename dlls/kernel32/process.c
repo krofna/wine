@@ -1063,6 +1063,9 @@ static DWORD WINAPI start_process( PEB *peb )
 {
     IMAGE_NT_HEADERS *nt;
     LPTHREAD_START_ROUTINE entry;
+    HINSTANCE apphelp;
+    WCHAR path[1024];
+    BOOL (*SdbGetMatchingExe)(void*, LPCWSTR, LPCWSTR, LPCWSTR, DWORD, void*);
 
     nt = RtlImageNtHeader( peb->ImageBaseAddress );
     entry = (LPTHREAD_START_ROUTINE)((char *)peb->ImageBaseAddress +
@@ -1078,6 +1081,20 @@ static DWORD WINAPI start_process( PEB *peb )
     if (TRACE_ON(relay))
         DPRINTF( "%04x:Starting process %s (entryproc=%p)\n", GetCurrentThreadId(),
                  debugstr_w(peb->ProcessParameters->ImagePathName.Buffer), entry );
+
+    apphelp = LoadLibraryA("apphelp.dll");
+    if (apphelp)
+    {
+        SdbGetMatchingExe = (void *) GetProcAddress(apphelp, "SdbGetMatchingExe");
+        if (SdbGetMatchingExe)
+        {
+            GetModuleFileNameW(NULL, path, 1024);
+            if (SdbGetMatchingExe(NULL, path, NULL, NULL, 0, NULL))
+            {
+                DPRINTF( "Application %s is found in shim database\n", debugstr_w(path) );
+            }
+        }
+    }
 
     SetLastError( 0 );  /* clear error code */
     if (peb->BeingDebugged) DbgBreakPoint();
