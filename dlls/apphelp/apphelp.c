@@ -1444,7 +1444,7 @@ BOOL WINAPI SdbReadBinaryTag(PDB db, TAGID tagid, PBYTE buffer, DWORD size)
     if (!SdbCheckTagIDType(db, tagid, TAG_TYPE_BINARY))
         return FALSE;
 
-    SdbReadData(db, &size, tagid + 2, 4);
+    SdbReadData(db, &data_size, tagid + 2, 4);
     if (size < data_size)
         return FALSE;
 
@@ -1595,8 +1595,8 @@ BOOL WINAPI SdbGetMatchingExe(HSDB hsdb, LPCWSTR path, LPCWSTR module_name,
     memcpy(dir_path, path, (size_t)(file_name - path) * sizeof(WCHAR));
 
     /* Get information about executable required to match it with database entry */
-    //if (!SdbGetFileAttributes(path, &attribs, &attr_count))
-        //return FALSE;
+    /*if (!SdbGetFileAttributes(path, &attribs, &attr_count))
+        return FALSE;*/
 
     /* DATABASE is list TAG which contains all executables */
     database = SdbFindFirstTag(db, TAGID_ROOT, TAG_DATABASE);
@@ -1779,6 +1779,7 @@ HSDB WINAPI SdbInitDatabase(DWORD flags, LPCWSTR path)
             case SDB_DATABASE_MAIN_SHIM: name = shim; break;
             case SDB_DATABASE_MAIN_MSI: name = msi; break;
             case SDB_DATABASE_MAIN_DRIVERS: name = drivers; break;
+            default: return NULL;
         }
         SdbGetAppPatchDir(NULL, buffer, 128);
         memcpy(buffer + lstrlenW(buffer), name, SdbStrlen(name));

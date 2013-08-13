@@ -53,7 +53,6 @@ static BOOL (WINAPI *pSdbWriteStringTag)(PDB, TAG, LPCWSTR);
 static TAGID (WINAPI *pSdbBeginWriteListTag)(PDB, TAG);
 static BOOL (WINAPI *pSdbEndWriteListTag)(PDB, TAGID);
 static BOOL (WINAPI *pSdbWriteStringRefTag)(PDB, TAG, TAGID);
-static BOOL (WINAPI *pSdbGetFileAttributes)(LPCWSTR, PATTRINFO*, LPDWORD);
 
 DEFINE_GUID(GUID_NULL,0,0,0,0,0,0,0,0,0,0,0);
 
@@ -286,7 +285,6 @@ START_TEST(apphelp)
     pSdbBeginWriteListTag = (void *)GetProcAddress(hdll, "SdbBeginWriteListTag");
     pSdbEndWriteListTag = (void *) GetProcAddress(hdll, "SdbEndWriteListTag");
     pSdbWriteStringRefTag = (void *) GetProcAddress(hdll, "SdbWriteStringRefTag");
-    pSdbGetFileAttributes = (void *) GetProcAddress(hdll, "SdbGetFileAttributes");
 
     test_Sdb();
     test_SdbTagToString();
