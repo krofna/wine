@@ -1064,7 +1064,7 @@ static DWORD WINAPI start_process( PEB *peb )
     IMAGE_NT_HEADERS *nt;
     LPTHREAD_START_ROUTINE entry;
     HINSTANCE apphelp;
-    WCHAR path[1024];
+    WCHAR path[MAX_PATH];
     BOOL (*SdbGetMatchingExe)(void*, LPCWSTR, LPCWSTR, LPCWSTR, DWORD, void*);
 
     nt = RtlImageNtHeader( peb->ImageBaseAddress );
@@ -1088,7 +1088,7 @@ static DWORD WINAPI start_process( PEB *peb )
         SdbGetMatchingExe = (void *) GetProcAddress(apphelp, "SdbGetMatchingExe");
         if (SdbGetMatchingExe)
         {
-            GetModuleFileNameW(NULL, path, 1024);
+            GetModuleFileNameW(NULL, path, MAX_PATH);
             if (SdbGetMatchingExe(NULL, path, NULL, NULL, 0, NULL))
             {
                 DPRINTF( "Application %s is found in shim database\n", debugstr_w(path) );
