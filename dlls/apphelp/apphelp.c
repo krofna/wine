@@ -88,7 +88,6 @@ static void WINAPI SdbFlush(PDB db)
  */
 void WINAPI SdbCloseDatabaseWrite(PDB db)
 {
-    TRACE("%p\n", db);
     SdbFlush(db);
     SdbCloseDatabase(db);
 }
@@ -198,7 +197,6 @@ BOOL WINAPI ApphelpCheckShellObject( REFCLSID clsid, BOOL shim, ULONGLONG *flags
  */
 void WINAPI SdbCloseDatabase(PDB db)
 {
-    TRACE("%p\n", db);
     if (!db)
         return;
 
@@ -447,8 +445,6 @@ LPCWSTR WINAPI SdbTagToString(TAG tag)
     BOOL switch_table; /* should we use table2 and limits2? */
     WORD index, type_index;
 
-    TRACE("0x%x\n", tag);
-
     /* special case: null tag */
     if (tag == TAG_NULL)
         return null;
@@ -526,8 +522,6 @@ TAG WINAPI SdbGetTagFromTagID(PDB db, TAGID tagid)
 {
     TAG data;
 
-    TRACE("%p %u\n", db, tagid);
-
     /* A tag associated with tagid is first 2 bytes tagid bytes offset from beginning */
     if (!SdbReadData(db, &data, tagid, 2))
     {
@@ -553,8 +547,6 @@ TAG WINAPI SdbGetTagFromTagID(PDB db, TAGID tagid)
  */
 TAGID WINAPI SdbGetFirstChild(PDB db, TAGID parent)
 {
-    TRACE("%p %u\n", db, parent);
-
     /* if we are at beginning of database */
     if (parent == TAGID_ROOT)
     {
@@ -625,8 +617,6 @@ TAGID WINAPI SdbGetNextChild(PDB db, TAGID parent, TAGID prev_child)
     TAGID next_child;
     DWORD prev_child_size, parent_size;
 
-    TRACE("%p %u %u\n", db, parent, prev_child);
-
     prev_child_size = SdbGetTagSize(db, prev_child);
     if (prev_child_size == 0)
     {
@@ -680,8 +670,6 @@ TAGID WINAPI SdbFindNextTag(PDB db, TAGID parent, TAGID prev_child)
     TAG tag;
     TAGID iter;
 
-    TRACE("%p %u %u\n", db, parent, prev_child);
-
     tag = SdbGetTagFromTagID(db, prev_child);
     iter = SdbGetNextChild(db, parent, prev_child);
 
@@ -711,8 +699,6 @@ TAGID WINAPI SdbFindNextTag(PDB db, TAGID parent, TAGID prev_child)
 TAGID WINAPI SdbFindFirstTag(PDB db, TAGID parent, TAG tag)
 {
     TAGID iter;
-
-    TRACE("%p %u 0x%x\n", db, parent, tag);
 
     iter = SdbGetFirstChild(db, parent);
     while (iter != TAGID_NULL)
@@ -884,8 +870,6 @@ BOOL WINAPI SdbReadStringTag(PDB db, TAGID tagid, LPWSTR buffer, DWORD size)
 {
     LPWSTR string;
     DWORD string_size;
-
-    TRACE("%p, %u, %p, %u\n", db, tagid, buffer, size);
 
     string = SdbGetString(db, tagid, &string_size);
     if (!string)
@@ -1217,8 +1201,6 @@ BOOL WINAPI SdbWriteBinaryTagFromFile(PDB db, TAG tag, LPCWSTR path)
     HANDLE file, mapping;
     DWORD size;
     LPVOID view;
-
-    TRACE("%p 0x%x %s\n", db, tag, debugstr_w(path));
 
     if (!SdbCheckTagType(tag, TAG_TYPE_BINARY))
         return FALSE;
