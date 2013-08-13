@@ -53,6 +53,7 @@ static BOOL (WINAPI *pSdbWriteStringTag)(PDB, TAG, LPCWSTR);
 static TAGID (WINAPI *pSdbBeginWriteListTag)(PDB, TAG);
 static BOOL (WINAPI *pSdbEndWriteListTag)(PDB, TAGID);
 static BOOL (WINAPI *pSdbWriteStringRefTag)(PDB, TAG, TAGID);
+static BOOL (WINAPI *pSdbReadBinaryTag)(PDB, TAGID, PBYTE, DWORD);
 
 DEFINE_GUID(GUID_NULL,0,0,0,0,0,0,0,0,0,0,0);
 
@@ -161,7 +162,7 @@ static void test_Sdb(void)
         TAG_SIZE, TAG_FLAG_LUA, TAG_NAME,
         TAG_STRINGTABLE, TAG_STRINGTABLE_ITEM
     };
-    WCHAR buffer[6] = {0};
+    WCHAR buffer[8] = {0};
     PDB db;
     QWORD qword;
     DWORD dword;
@@ -252,6 +253,9 @@ static void test_Sdb(void)
     ok(db != NULL, "unexpected NULL handle\n");
     binary = pSdbGetBinaryTagData(db, _TAGID_ROOT);
     ok (memcmp(binary, &qword, 8) == 0, "binary data is corrupt\n");
+    ret = pSdbReadBinaryTag(db, _TAGID_ROOT, buffer, 8);
+    ok (ret, "failed to read binary tag\n");
+    ok (memcmp(buffer, &qword, 8) == 0, "binary data is corrupt\n");
     pSdbCloseDatabase(db);
     DeleteFileW(path);
 }
@@ -285,6 +289,7 @@ START_TEST(apphelp)
     pSdbBeginWriteListTag = (void *)GetProcAddress(hdll, "SdbBeginWriteListTag");
     pSdbEndWriteListTag = (void *) GetProcAddress(hdll, "SdbEndWriteListTag");
     pSdbWriteStringRefTag = (void *) GetProcAddress(hdll, "SdbWriteStringRefTag");
+    pSdbReadBinaryTag = (void *) GetProcAddress(hdll, "SdbReadBinaryTag");
 
     test_Sdb();
     test_SdbTagToString();
