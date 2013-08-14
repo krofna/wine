@@ -565,13 +565,26 @@ TAGID WINAPI SdbGetFirstChild(PDB db, TAGID parent)
     return parent + 6;
 }
 
-static DWORD WINAPI SdbGetTagSize(PDB db, TAGID tagid)
+/**************************************************************************
+ *        SdbGetTagDataSize                [APPHELP.@]
+ *
+ * Retrieves size of data at specified tagid
+ *
+ * PARAMS
+ *  db       [I] Handle to the shim database
+ *  tagid    [I] Tagid of tag whose size is queried
+ *
+ * RETURNS
+ *  Success: Size of data at specified tagid
+ *  Failure: 0
+ */
+DWORD WINAPI SdbGetTagDataSize(PDB db, TAGID tagid)
 {
-    /* sizes of data types with fixed size + sizeof(TAG) */
+    /* sizes of data types with fixed size */
     static const SIZE_T sizes[6] = {
-        0 + 2, 1 + 2,
-        2 + 2, 4 + 2,
-        8 + 2, 4 + 2
+        0, /* NULL  */ 1, /* BYTE      */
+        2, /* WORD  */ 4, /* DWORD     */
+        8, /* QWORD */ 4  /* STRINGREF */
     };
     WORD type;
     DWORD size;
@@ -594,8 +607,27 @@ static DWORD WINAPI SdbGetTagSize(PDB db, TAGID tagid)
         return 0;
     }
 
-    /* add 4 because of size DWORD */
-    return size + 2 + 4;
+    return size;
+}
+
+static DWORD WINAPI SdbGetTagSize(PDB db, TAGID tagid)
+{
+    WORD type;
+    DWORD size;
+
+    type = SdbGetTagFromTagID(db, tagid) & TAG_TYPE_MASK;
+    if (type == TAG_NULL)
+    {
+        TRACE("Invalid tagid\n");
+        return 0;
+    }
+
+    size = SdbGetTagDataSize(db, tagid);
+    if (type <= TAG_TYPE_STRINGREF)
+        return size += 2; /* sizeof(TAG) */
+    else size += 6; /* sizeof(TAG) + sizeof(DWORD) */
+
+    return size;
 }
 
 /**************************************************************************

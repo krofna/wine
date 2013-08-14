@@ -54,6 +54,9 @@ static TAGID (WINAPI *pSdbBeginWriteListTag)(PDB, TAG);
 static BOOL (WINAPI *pSdbEndWriteListTag)(PDB, TAGID);
 static BOOL (WINAPI *pSdbWriteStringRefTag)(PDB, TAG, TAGID);
 static BOOL (WINAPI *pSdbReadBinaryTag)(PDB, TAGID, PBYTE, DWORD);
+static TAGID (WINAPI *pSdbFindFirstTag)(PDB, TAGID, TAG);
+static BOOL (WINAPI *pSdbWriteNULLTag)(PDB, TAG);
+static DWORD (WINAPI *pSdbGetTagDataSize)(PDB, TAGID);
 
 DEFINE_GUID(GUID_NULL,0,0,0,0,0,0,0,0,0,0,0);
 
@@ -162,14 +165,14 @@ static void test_Sdb(void)
         TAG_SIZE, TAG_FLAG_LUA, TAG_NAME,
         TAG_STRINGTABLE, TAG_STRINGTABLE_ITEM
     };
-    WCHAR buffer[8] = {0};
+    WCHAR buffer[6] = {0};
     PDB db;
     QWORD qword;
     DWORD dword;
     BOOL ret;
     HANDLE file; /* temp file created for testing purpose */
     TAG tag;
-    TAGID tagid, stringref = 6;
+    TAGID tagid, ptagid, stringref = 6;
     LPCWSTR string;
     PBYTE binary;
 
@@ -185,6 +188,8 @@ static void test_Sdb(void)
     ok (tagid != TAGID_NULL, "unexpected NULL tagid\n");
     ret = pSdbWriteStringTag(db, tags[4], path);
     ok (ret, "failed to write string tag\n");
+    ret = pSdbWriteNULLTag(db, TAG_GENERAL);
+    ok (ret, "failed to write null tag\n");
     ret = pSdbEndWriteListTag(db, tagid);
     ok (ret, "failed to update list size\n");
     pSdbCloseDatabaseWrite(db);
@@ -224,8 +229,8 @@ static void test_Sdb(void)
     ok (string && (lstrcmpW(string, path) == 0), "unexpected string %s, expected %s\n",
         wine_dbgstr_w(string), wine_dbgstr_w(path));
 
-    tagid = pSdbGetNextChild(db, TAGID_ROOT, tagid);
-    tagid = pSdbGetFirstChild(db, tagid);
+    ptagid = pSdbGetNextChild(db, TAGID_ROOT, tagid);
+    tagid = pSdbGetFirstChild(db, ptagid);
 
     string = pSdbGetStringTagPtr(db, tagid);
     ok (string && (lstrcmpW(string, path) == 0), "unexpected string %s, expected %s\n",
@@ -233,6 +238,12 @@ static void test_Sdb(void)
 
     ok (pSdbReadStringTag(db, tagid, buffer, 6), "failed to write string to buffer\n");
     ok (!pSdbReadStringTag(db, tagid, buffer, 3), "string was written to buffer, but failure was expected");
+    ok (pSdbGetTagDataSize(db, tagid) == 5 * sizeof(WCHAR), "string has unexpected size\n");
+
+    tagid = pSdbGetNextChild(db, ptagid, tagid);
+    tag = pSdbGetTagFromTagID(db, tagid);
+    ok (tag == TAG_GENERAL, "unexpected tag 0x%x, expected 0x%x\n", tag, TAG_GENERAL);
+    ok (pSdbGetTagDataSize(db, tagid) == 0, "null tag with size > 0\n");
 
     pSdbCloseDatabase(db);
     DeleteFileW(path);
@@ -253,7 +264,7 @@ static void test_Sdb(void)
     ok(db != NULL, "unexpected NULL handle\n");
     binary = pSdbGetBinaryTagData(db, _TAGID_ROOT);
     ok (memcmp(binary, &qword, 8) == 0, "binary data is corrupt\n");
-    ret = pSdbReadBinaryTag(db, _TAGID_ROOT, buffer, 8);
+    ret = pSdbReadBinaryTag(db, _TAGID_ROOT, (PBYTE)buffer, 12);
     ok (ret, "failed to read binary tag\n");
     ok (memcmp(buffer, &qword, 8) == 0, "binary data is corrupt\n");
     pSdbCloseDatabase(db);
@@ -290,6 +301,9 @@ START_TEST(apphelp)
     pSdbEndWriteListTag = (void *) GetProcAddress(hdll, "SdbEndWriteListTag");
     pSdbWriteStringRefTag = (void *) GetProcAddress(hdll, "SdbWriteStringRefTag");
     pSdbReadBinaryTag = (void *) GetProcAddress(hdll, "SdbReadBinaryTag");
+    pSdbFindFirstTag = (void *) GetProcAddress(hdll, "SdbFindFirstTag");
+    pSdbWriteNULLTag = (void *) GetProcAddress(hdll, "SdbWriteNULLTag");
+    pSdbGetTagDataSize = (void *) GetProcAddress(hdll, "SdbGetTagDataSize");
 
     test_Sdb();
     test_SdbTagToString();
