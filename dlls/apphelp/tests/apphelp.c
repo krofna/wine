@@ -57,6 +57,9 @@ static BOOL (WINAPI *pSdbReadBinaryTag)(PDB, TAGID, PBYTE, DWORD);
 static TAGID (WINAPI *pSdbFindFirstTag)(PDB, TAGID, TAG);
 static BOOL (WINAPI *pSdbWriteNULLTag)(PDB, TAG);
 static DWORD (WINAPI *pSdbGetTagDataSize)(PDB, TAGID);
+static TAGID (WINAPI *pSdbFindNextTag)(PDB, TAGID, TAGID);
+static BOOL (WINAPI *pSdbWriteWORDTag)(PDB, TAG, WORD);
+static WORD (WINAPI *pSdbReadWORDTag)(PDB, TAGID, WORD);
 
 DEFINE_GUID(GUID_NULL,0,0,0,0,0,0,0,0,0,0,0);
 
@@ -169,6 +172,7 @@ static void test_Sdb(void)
     PDB db;
     QWORD qword;
     DWORD dword;
+    WORD word;
     BOOL ret;
     HANDLE file; /* temp file created for testing purpose */
     TAG tag;
@@ -189,7 +193,9 @@ static void test_Sdb(void)
     ret = pSdbWriteStringTag(db, tags[4], path);
     ok (ret, "failed to write string tag\n");
     ret = pSdbWriteNULLTag(db, TAG_GENERAL);
-    ok (ret, "failed to write null tag\n");
+    ok (ret, "failed to write NULL tag\n");
+    ret = pSdbWriteWORDTag(db, TAG_MATCH_MODE, 0xACE);
+    ok (ret, "failed to write WORD tag\n");
     ret = pSdbEndWriteListTag(db, tagid);
     ok (ret, "failed to update list size\n");
     pSdbCloseDatabaseWrite(db);
@@ -245,6 +251,10 @@ static void test_Sdb(void)
     ok (tag == TAG_GENERAL, "unexpected tag 0x%x, expected 0x%x\n", tag, TAG_GENERAL);
     ok (pSdbGetTagDataSize(db, tagid) == 0, "null tag with size > 0\n");
 
+    tagid = pSdbGetNextChild(db, ptagid, tagid);
+    word = pSdbReadWORDTag(db, tagid, 0);
+    ok (word == 0xACE, "unexpected value 0x%x, expected 0x%x\n", word, 0xACE);
+
     pSdbCloseDatabase(db);
     DeleteFileW(path);
 
@@ -273,12 +283,13 @@ static void test_Sdb(void)
 
 START_TEST(apphelp)
 {
-
     hdll = LoadLibrary("apphelp.dll");
-    if (!hdll) {
+    if (!hdll)
+    {
         win_skip("apphelp.dll not available\n");
         return;
     }
+
     pApphelpCheckShellObject = (void *) GetProcAddress(hdll, "ApphelpCheckShellObject");
     pSdbTagToString = (void *) GetProcAddress(hdll, "SdbTagToString");
     pSdbOpenDatabase = (void *) GetProcAddress(hdll, "SdbOpenDatabase");
@@ -304,6 +315,9 @@ START_TEST(apphelp)
     pSdbFindFirstTag = (void *) GetProcAddress(hdll, "SdbFindFirstTag");
     pSdbWriteNULLTag = (void *) GetProcAddress(hdll, "SdbWriteNULLTag");
     pSdbGetTagDataSize = (void *) GetProcAddress(hdll, "SdbGetTagDataSize");
+    pSdbFindNextTag = (void *) GetProcAddress(hdll, "SdbFindNextTag");
+    pSdbWriteWORDTag = (void *) GetProcAddress(hdll, "SdbWriteWORDTag");
+    pSdbReadWORDTag = (void *) GetProcAddress(hdll, "SdbReadWORDTag");
 
     test_Sdb();
     test_SdbTagToString();

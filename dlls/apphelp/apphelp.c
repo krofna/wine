@@ -1824,3 +1824,34 @@ void WINAPI SdbReleaseDatabase(HSDB hsdb)
     SdbCloseDatabase(hsdb->db);
     HeapFree(GetProcessHeap(), 0, hsdb);
 }
+
+/**************************************************************************
+ *        SdbReadWORDTag                [APPHELP.@]
+ *
+ * Reads WORD value at specified tagid
+ *
+ * PARAMS
+ *  db          [I] Handle to the shim database
+ *  tagid       [I] TAGID of WORD value
+ *  ret         [I] Default return value in case function fails
+ *
+ * RETURNS
+ *  Success: WORD value at specified tagid
+ *  Failure: ret
+ */
+WORD WINAPI SdbReadWORDTag(PDB db, TAGID tagid, WORD ret)
+{
+    if (!SdbCheckTagIDType(db, tagid, TAG_TYPE_WORD))
+    {
+        TRACE("Tag associated with tagid %u is not a WORD\n", tagid);
+        return ret;
+    }
+
+    if (!SdbReadData(db, &ret, tagid + 2, sizeof(WORD)))
+    {
+        TRACE("Failed to read WORD tag at tagid %u\n", tagid);
+        return ret;
+    }
+
+    return ret;
+}

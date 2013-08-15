@@ -126,6 +126,7 @@
 @ stub SdbReadQWORDTagRef
 @ stdcall SdbReadStringTag(ptr long wstr long)
 @ stub SdbReadStringTagRef
+@ stdcall SdbReadWORDTag(ptr long long)
 @ stub SdbReadWORDTagRef
 @ stub SdbRegisterDatabase
 @ stdcall SdbReleaseDatabase(ptr)
