@@ -21,9 +21,12 @@
 #include "windef.h"
 #include "winbase.h"
 #include "apphelp.h"
+#include "winternl.h"
 #include <appcompatapi.h>
 
 #include "wine/debug.h"
+
+#define STATUS_SUCCESS ((NTSTATUS)0)
 
 WINE_DEFAULT_DEBUG_CHANNEL(apphelp);
 
@@ -54,11 +57,121 @@ BOOL WINAPI ApphelpCheckMsiPackage( void* ptr, LPCWSTR path )
     return TRUE;
 }
 
+static PDB WINAPI SdbCreate(void)
+{
+    PDB db = (PDB)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(DB));
+    if (db)
+        db->file = INVALID_HANDLE_VALUE;
+    return db;
+}
+
+static void* SdbAlloc(DWORD size)
+{
+    return HeapAlloc(GetProcessHeap(), 0, size);
+}
+
+static void WINAPI SdbWrite(PDB db, LPCVOID data, DWORD size)
+{
+    if (db->write_iter + size > db->size)
+    {
+        /* Round to powers of two to prevent too many reallocations */
+        while (db->size < db->write_iter + size) db->size <<= 1;
+        db->data = HeapReAlloc(GetProcessHeap(), 0, db->data, db->size);
+    }
+
+    memcpy(db->data + db->write_iter, data, size);
+    db->write_iter += size;
+}
+
+/**************************************************************************
+ *        SdbCloseDatabase                [APPHELP.@]
+ *
+ * Closes specified database and frees its memory
+ *
+ * PARAMS
+ *  db      [I] Handle to the shim database
+ *
+ * RETURNS
+ *  This function does not return a value.
+ */
+void WINAPI SdbCloseDatabase(PDB db)
+{
+    if (!db)
+        return;
+
+    NtClose(db->file);
+    HeapFree(GetProcessHeap(), 0, db->data);
+    HeapFree(GetProcessHeap(), 0, db);
+}
+
+/**************************************************************************
+ *        SdbCreateDatabase                [APPHELP.@]
+ *
+ * Creates new shim database file
+ *
+ * PARAMS
+ *  path      [I] Path to the new shim database
+ *  type      [I] Type of path. Either DOS_PATH or NT_PATH
+ *
+ * RETURNS
+ *  Success: Handle to the newly created shim database
+ *  Failure: NULL handle
+ *
+ * NOTES
+ *  If a file already exists on specified path, that file shall be overwritten.
+ *  Use SdbCloseDatabasWrite to close the database opened with this function.
+ */
 PDB WINAPI SdbCreateDatabase( LPCWSTR path, PATH_TYPE type )
 {
-    FIXME("stub: %s %u\n", debugstr_w(path), type);
-    SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
-    return NULL;
+    static const DWORD version_major = 2, version_minor = 1;
+    static const char* magic = "sdbf";
+    NTSTATUS status;
+    IO_STATUS_BLOCK io;
+    OBJECT_ATTRIBUTES attr;
+    UNICODE_STRING str;
+    PDB db;
+
+    TRACE("%s %u\n", debugstr_w(path), type);
+
+    db = SdbCreate();
+    if (!db)
+    {
+        TRACE("Failed to allocate memory for shim database\n");
+        return NULL;
+    }
+
+    if (type == DOS_PATH)
+    {
+        if (!RtlDosPathNameToNtPathName_U(path, &str, NULL, NULL))
+            return NULL;
+    }
+    else
+        RtlInitUnicodeString(&str, path);
+
+    InitializeObjectAttributes(&attr, &str, OBJ_CASE_INSENSITIVE, NULL, NULL);
+
+    status = NtCreateFile(&db->file, FILE_GENERIC_WRITE,
+                          &attr, &io, NULL, FILE_ATTRIBUTE_NORMAL, FILE_SHARE_READ,
+                          FILE_SUPERSEDE, FILE_NON_DIRECTORY_FILE, NULL, 0);
+
+    if (type == DOS_PATH)
+        RtlFreeUnicodeString(&str);
+
+    if (status != STATUS_SUCCESS)
+    {
+        SdbCloseDatabase(db);
+        TRACE("Failed to create shim database file\n");
+        return NULL;
+    }
+
+    db->data = SdbAlloc(16);
+    db->size = 16;
+
+    SdbWrite(db, &version_major, 4);
+    SdbWrite(db, &version_minor, 4);
+    SdbWrite(db, magic, 4);
+
+    return db;
 }
 
 BOOL WINAPI ApphelpCheckShellObject( REFCLSID clsid, BOOL shim, ULONGLONG *flags )
