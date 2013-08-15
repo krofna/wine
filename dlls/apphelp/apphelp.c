@@ -19,20 +19,12 @@
 #include <stdarg.h>
 #include "windef.h"
 #include "winbase.h"
+#include "apphelp.h"
 #include <appcompatapi.h>
 
 #include "wine/debug.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(apphelp);
-
-/* FIXME: don't know where to place that enum */
-typedef enum _PATH_TYPE {
-    DOS_PATH,
-    NT_PATH
-} PATH_TYPE;
-
-/* FIXME: don't know where to place that typedef */
-typedef HANDLE PDB;
 
 BOOL WINAPI DllMain( HINSTANCE hinst, DWORD reason, LPVOID reserved )
 {
