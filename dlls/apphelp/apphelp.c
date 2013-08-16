@@ -673,7 +673,7 @@ TAGID WINAPI SdbGetNextChild(PDB db, TAGID parent, TAGID prev_child)
         return TAGID_NULL;
     }
 
-    if (next_child >= parent + parent_size + 6)
+    if (next_child >= parent + parent_size)
     {
         TRACE("Specified parent has no more children\n");
         return TAGID_NULL;
