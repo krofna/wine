@@ -269,6 +269,7 @@ static void test_Sdb(void)
     ret = pSdbWriteBinaryTagFromFile(db, TAG_DATA_BITS, path2);
     ok (ret, "failed to write tag from binary file\n");
     pSdbCloseDatabaseWrite(db);
+    DeleteFileW(path2);
 
     db = pSdbOpenDatabase(path, DOS_PATH);
     ok(db != NULL, "unexpected NULL handle\n");

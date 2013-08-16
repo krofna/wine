@@ -474,32 +474,17 @@ LPCWSTR WINAPI SdbTagToString(TAG tag)
     return switch_table ? table2[type_index][index] : table[type_index][index];
 }
 
-static BOOL WINAPI SdbSafeAdd(DWORD a, DWORD b, PDWORD c)
-{
-    if ((a + b) >= a)
-    {
-        *c = a + b;
-        return TRUE;
-    }
-    return FALSE;
-}
-
 static BOOL WINAPI SdbReadData(PDB db, PVOID dest, DWORD offset, DWORD num)
 {
-    DWORD size;
+    DWORD size = offset + num;
 
-    if (!SdbSafeAdd(offset, num, &size))
-    {
-        TRACE("Failed to add %u and %u, overflow!\n", offset, num);
+    /* Either overflow or no data to read */
+    if (size <= offset)
         return FALSE;
-    }
 
+    /* Overflow */
     if (db->size < size)
-    {
-        TRACE("Cannot read %u bytes starting at %u from database of size %u, overflow!\n",
-              num, offset, db->size);
         return FALSE;
-    }
 
     memcpy(dest, db->data + offset, num);
     return TRUE;
@@ -521,14 +506,8 @@ static BOOL WINAPI SdbReadData(PDB db, PVOID dest, DWORD offset, DWORD num)
 TAG WINAPI SdbGetTagFromTagID(PDB db, TAGID tagid)
 {
     TAG data;
-
-    /* A tag associated with tagid is first 2 bytes tagid bytes offset from beginning */
     if (!SdbReadData(db, &data, tagid, 2))
-    {
-        TRACE("Failed to read tag at tagid %u\n", tagid);
         return TAG_NULL;
-    }
-
     return data;
 }
 
@@ -590,22 +569,15 @@ DWORD WINAPI SdbGetTagDataSize(PDB db, TAGID tagid)
     DWORD size;
 
     type = SdbGetTagFromTagID(db, tagid) & TAG_TYPE_MASK;
-
     if (type == TAG_NULL)
-    {
-        TRACE("Invalid tagid\n");
         return 0;
-    }
 
     if (type <= TAG_TYPE_STRINGREF)
         return sizes[(type >> 12) - 1];
 
     /* tag with dynamic size (e.g. list): must read size */
     if (!SdbReadData(db, &size, tagid + 2, 4))
-    {
-        TRACE("Failed to read size of tag!\n");
         return 0;
-    }
 
     return size;
 }
@@ -617,10 +589,7 @@ static DWORD WINAPI SdbGetTagSize(PDB db, TAGID tagid)
 
     type = SdbGetTagFromTagID(db, tagid) & TAG_TYPE_MASK;
     if (type == TAG_NULL)
-    {
-        TRACE("Invalid tagid\n");
         return 0;
-    }
 
     size = SdbGetTagDataSize(db, tagid);
     if (type <= TAG_TYPE_STRINGREF)
@@ -651,33 +620,23 @@ TAGID WINAPI SdbGetNextChild(PDB db, TAGID parent, TAGID prev_child)
 
     prev_child_size = SdbGetTagSize(db, prev_child);
     if (prev_child_size == 0)
-    {
-        TRACE("Failed to read child tag size\n");
         return TAGID_NULL;
-    }
 
+    /* Bound check */
     next_child = prev_child + prev_child_size;
     if (next_child >= db->size)
-    {
-        TRACE("Next child is beyond end of database, overflow!\n");
         return TAGID_NULL;
-    }
 
     if (parent == TAGID_ROOT)
         return next_child;
 
     parent_size = SdbGetTagSize(db, parent);
     if (parent_size == 0)
-    {
-        TRACE("Failed to read parent tag size\n");
         return TAGID_NULL;
-    }
 
+    /* Specified parent has no more children */
     if (next_child >= parent + parent_size)
-    {
-        TRACE("Specified parent has no more children\n");
         return TAGID_NULL;
-    }
 
     return next_child;
 }
@@ -831,7 +790,6 @@ PDB WINAPI SdbOpenDatabase(LPCWSTR path, PATH_TYPE type)
     }
 
     db->stringtable = SdbFindFirstTag(db, TAGID_ROOT, TAG_STRINGTABLE);
-
     return db;
 }
 
@@ -841,16 +799,14 @@ static LPWSTR WINAPI SdbGetString(PDB db, TAGID tagid, PDWORD size)
     TAGID offset;
 
     tag = SdbGetTagFromTagID(db, tagid);
-    if (!tag)
+    if (tag == TAG_NULL)
         return NULL;
 
     if ((tag & TAG_TYPE_MASK) == TAG_TYPE_STRINGREF)
     {
+        /* No stringtable; all references are invalid */
         if (db->stringtable == TAGID_NULL)
-        {
-            TRACE("stringref is invalid because there is no stringtable\n");
             return NULL;
-        }
 
         /* TAG_TYPE_STRINGREF contains offset of string relative to stringtable */
         if (!SdbReadData(db, &tagid, tagid + sizeof(TAG), sizeof(TAGID)))
@@ -870,10 +826,7 @@ static LPWSTR WINAPI SdbGetString(PDB db, TAGID tagid, PDWORD size)
 
     /* Optionally read string size */
     if (size && !SdbReadData(db, size, tagid + 2, 4))
-    {
-        TRACE("Failed to read size of string!\n");
         return FALSE;
-    }
 
     return (LPWSTR)(&db->data[offset]);
 }
@@ -907,12 +860,9 @@ BOOL WINAPI SdbReadStringTag(PDB db, TAGID tagid, LPWSTR buffer, DWORD size)
     if (!string)
         return FALSE;
 
+    /* Check if buffer is too small */
     if (size * sizeof(WCHAR) < string_size)
-    {
-        TRACE("Buffer of size %u is too small for string of size %u\n",
-              size * sizeof(WCHAR), string_size);
         return FALSE;
-    }
 
     memcpy(buffer, string, string_size);
     return TRUE;
@@ -949,18 +899,8 @@ static BOOL WINAPI SdbCheckTagIDType(PDB db, TAGID tagid, WORD type)
  */
 DWORD WINAPI SdbReadDWORDTag(PDB db, TAGID tagid, DWORD ret)
 {
-    if (!SdbCheckTagIDType(db, tagid, TAG_TYPE_DWORD))
-    {
-        TRACE("Tag associated with tagid %u is not a DWORD\n", tagid);
-        return ret;
-    }
-
-    if (!SdbReadData(db, &ret, tagid + 2, sizeof(DWORD)))
-    {
-        TRACE("Failed to read DWORD tag at tagid %u\n", tagid);
-        return ret;
-    }
-
+    if (SdbCheckTagIDType(db, tagid, TAG_TYPE_DWORD))
+        SdbReadData(db, &ret, tagid + 2, sizeof(DWORD));
     return ret;
 }
 
@@ -980,18 +920,8 @@ DWORD WINAPI SdbReadDWORDTag(PDB db, TAGID tagid, DWORD ret)
  */
 QWORD WINAPI SdbReadQWORDTag(PDB db, TAGID tagid, QWORD ret)
 {
-    if (!SdbCheckTagIDType(db, tagid, TAG_TYPE_QWORD))
-    {
-        TRACE("Tag associated with tagid %u is not a QWORD\n", tagid);
-        return ret;
-    }
-
-    if (!SdbReadData(db, &ret, tagid + 2, sizeof(QWORD)))
-    {
-        TRACE("Failed to read QWORD tag at tagid %u\n", tagid);
-        return ret;
-    }
-
+    if (SdbCheckTagIDType(db, tagid, TAG_TYPE_QWORD))
+        SdbReadData(db, &ret, tagid + 2, sizeof(QWORD));
     return ret;
 }
 
@@ -1011,11 +941,7 @@ QWORD WINAPI SdbReadQWORDTag(PDB db, TAGID tagid, QWORD ret)
 PVOID WINAPI SdbGetBinaryTagData(PDB db, TAGID tagid)
 {
     if (!SdbCheckTagIDType(db, tagid, TAG_TYPE_BINARY))
-    {
-        TRACE("The tag associated with tagid %u is not of type BINARY\n", tagid);
         return NULL;
-    }
-
     return &db->data[tagid + 6];
 }
 
@@ -1243,6 +1169,7 @@ BOOL WINAPI SdbWriteBinaryTagFromFile(PDB db, TAG tag, LPCWSTR path)
 
     SdbWriteBinaryTag(db, tag, view, size);
 
+    UnmapViewOfFile(view);
     CloseHandle(mapping);
     CloseHandle(file);
     return TRUE;
@@ -1431,8 +1358,12 @@ BOOL WINAPI SdbGetFileAttributes(LPCWSTR path, PATTRINFO *attr_info, LPDWORD att
     SdbSetAttrFail(attr_info[26]); /* TAG_VER_LANGUAGE 0x0: neutral, 0x409: eng (US), Russisch (Rusland) 0x419, Svenska (Sverige) 0x41d, eng (AUS) 0x800, Svenska (Sverige) [0x41d]*/
     SdbSetAttrFail(attr_info[27]); /* TAG_EXE_WRAPPER - boolean */
 
-    HeapFree(GetProcessHeap(), 0, file_info);
     *attr_count = 28; /* As far as I know, this one is always 28 */
+
+    HeapFree(GetProcessHeap(), 0, file_info);
+    UnmapViewOfFile(view);
+    CloseHandle(mapping);
+    CloseHandle(file);
     return TRUE;
 }
 
@@ -1455,14 +1386,14 @@ BOOL WINAPI SdbReadBinaryTag(PDB db, TAGID tagid, PBYTE buffer, DWORD size)
 {
     DWORD data_size;
 
-    if (!SdbCheckTagIDType(db, tagid, TAG_TYPE_BINARY))
-        return FALSE;
+    if (SdbCheckTagIDType(db, tagid, TAG_TYPE_BINARY))
+    {
+        SdbReadData(db, &data_size, tagid + 2, 4);
+        if (size >= data_size)
+            return SdbReadData(db, buffer, tagid + 6, data_size);
+    }
 
-    SdbReadData(db, &data_size, tagid + 2, 4);
-    if (size < data_size)
-        return FALSE;
-
-    return SdbReadData(db, buffer, tagid + 6, data_size);
+    return FALSE;
 }
 
 /**************************************************************************
@@ -1513,6 +1444,7 @@ BOOL WINAPI SdbEndWriteListTag(PDB db, TAGID tagid)
     if (!SdbCheckTagIDType(db, tagid, TAG_TYPE_LIST))
         return FALSE;
 
+    /* Write size of list to list tag header */
     *(DWORD*)&db->data[tagid + 2] = db->write_iter - tagid - 2;
     return TRUE;
 }
@@ -1841,17 +1773,7 @@ void WINAPI SdbReleaseDatabase(HSDB hsdb)
  */
 WORD WINAPI SdbReadWORDTag(PDB db, TAGID tagid, WORD ret)
 {
-    if (!SdbCheckTagIDType(db, tagid, TAG_TYPE_WORD))
-    {
-        TRACE("Tag associated with tagid %u is not a WORD\n", tagid);
-        return ret;
-    }
-
-    if (!SdbReadData(db, &ret, tagid + 2, sizeof(WORD)))
-    {
-        TRACE("Failed to read WORD tag at tagid %u\n", tagid);
-        return ret;
-    }
-
+    if (SdbCheckTagIDType(db, tagid, TAG_TYPE_WORD))
+        SdbReadData(db, &ret, tagid + 2, sizeof(WORD));
     return ret;
 }
